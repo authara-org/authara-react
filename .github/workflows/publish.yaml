@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      validate_trusted_publishing:
+        description: Publish a one-time bootstrap prerelease to validate npm OIDC
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name != 'workflow_dispatch' || inputs.validate_trusted_publishing != true
     runs-on: ubuntu-latest
 
     steps:
@@ -102,3 +109,45 @@ jobs:
       - name: Publish to npm with Trusted Publisher
         if: steps.release.outputs.release_created == 'true'
         run: npm publish --provenance --access public
+
+  validate-trusted-publishing:
+    if: github.event_name == 'workflow_dispatch' && inputs.validate_trusted_publishing == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bootstrap source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Verify bootstrap state
+        run: |
+          test "$(node -p "require('./package.json').version")" = 0.0.0
+          test "$(jq -r '.browser.version' .contract/manifest.json)" = unreleased
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set unique validation version
+        env:
+          VALIDATION_VERSION: 0.0.1-trusted.${{ github.run_number }}
+        run: npm version "$VALIDATION_VERSION" --no-git-tag-version
+
+      - name: Check formatting
+        run: npm run check:format
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate npm Trusted Publishing
+        run: npm publish --provenance --access public --tag bootstrap
