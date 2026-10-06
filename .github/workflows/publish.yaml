@@ -1,0 +1,104 @@
+name: Release @authara/react
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout release state
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Check browser contract provenance
+        id: provenance
+        run: |
+          browser_version="$(jq -r '.browser.version' .contract/manifest.json)"
+          test -n "$browser_version"
+          test "$browser_version" != null
+          if test "$browser_version" = unreleased; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update React package release PR
+        id: release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          token: ${{ secrets.AUTHARA_SDK_RELEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Enable release PR auto-merge
+        if: steps.provenance.outputs.released == 'true' && steps.release.outputs.release_created != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AUTHARA_SDK_RELEASE_TOKEN || github.token }}
+        run: |
+          pr_number="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --state open \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--main"))][0].number')"
+          if test -z "$pr_number"; then
+            echo "No open Release Please PR found."
+            exit 0
+          fi
+          gh pr update-branch --repo "$GITHUB_REPOSITORY" "$pr_number"
+          gh pr merge --repo "$GITHUB_REPOSITORY" --auto --squash "$pr_number"
+
+      - name: Checkout released source
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+
+      - name: Setup Node
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install dependencies
+        if: steps.release.outputs.release_created == 'true'
+        run: npm ci
+
+      - name: Verify release is publishable
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          test "$(jq -r '.browser.version' .contract/manifest.json)" != unreleased
+          expected_tag="v$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "$expected_tag"
+
+      - name: Check browser contract
+        if: steps.release.outputs.release_created == 'true'
+        run: npm run check:contract
+
+      - name: Test
+        if: steps.release.outputs.release_created == 'true'
+        run: npm test
+
+      - name: Build
+        if: steps.release.outputs.release_created == 'true'
+        run: npm run build
+
+      - name: Publish to npm with Trusted Publisher
+        if: steps.release.outputs.release_created == 'true'
+        run: npm publish --provenance --access public

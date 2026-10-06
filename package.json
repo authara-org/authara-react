@@ -1,0 +1,53 @@
+{
+  "name": "@authara/react",
+  "version": "0.0.0",
+  "description": "Official React components for Authara browser authentication",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/authara-org/authara-react.git"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check:contract": "node scripts/check-contract.mjs",
+    "check:format": "prettier --check \"src/**/*.{ts,tsx}\" \"contract/**/*.ts\" \"scripts/**/*.mjs\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"contract/**/*.ts\" \"scripts/**/*.mjs\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" \"contract/**/*.ts\"",
+    "test": "vitest run",
+    "prepublishOnly": "npm run check:contract && npm run build"
+  },
+  "peerDependencies": {
+    "@authara/browser": ">=0.6.0 <1.0.0",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@authara/browser": "0.6.0",
+    "@eslint/js": "^9.39.2",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "happy-dom": "^20.4.0",
+    "prettier": "^3.8.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^4.0.18"
+  }
+}

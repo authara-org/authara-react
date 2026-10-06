@@ -1,0 +1,15 @@
+{
+  "browser": {
+    "repository": "authara-org/authara-browser",
+    "version": "unreleased",
+    "tag": "unreleased",
+    "commit": "unreleased"
+  },
+  "core": {
+    "repository": "authara-org/authara",
+    "version": "unreleased",
+    "commit": "unreleased",
+    "contract": "contract/openapi.yaml",
+    "contractSha256": "unreleased"
+  }
+}

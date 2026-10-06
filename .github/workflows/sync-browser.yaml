@@ -1,0 +1,178 @@
+name: Sync released browser SDK
+
+on:
+  repository_dispatch:
+    types: [authara-browser-released]
+  workflow_dispatch:
+    inputs:
+      browser_version:
+        description: Released @authara/browser version without the v prefix
+        required: true
+        type: string
+      browser_tag:
+        description: Released authara-browser tag
+        required: true
+        type: string
+      browser_sha:
+        description: Commit referenced by the authara-browser tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-browser-sdk
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      BROWSER_VERSION: ${{ github.event.client_payload.browser_version || inputs.browser_version }}
+      BROWSER_TAG: ${{ github.event.client_payload.browser_tag || inputs.browser_tag }}
+      BROWSER_SHA: ${{ github.event.client_payload.browser_sha || inputs.browser_sha }}
+      AUTOMATION_TOKEN: ${{ secrets.AUTHARA_SDK_RELEASE_TOKEN || github.token }}
+
+    steps:
+      - name: Validate release input
+        run: |
+          if [[ ! "$BROWSER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid browser version: $BROWSER_VERSION" >&2
+            exit 1
+          fi
+          if test "$BROWSER_TAG" != "v$BROWSER_VERSION"; then
+            echo "Browser tag $BROWSER_TAG does not match v$BROWSER_VERSION." >&2
+            exit 1
+          fi
+          if [[ ! "$BROWSER_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid browser commit: $BROWSER_SHA" >&2
+            exit 1
+          fi
+
+      - name: Checkout React package
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          token: ${{ env.AUTOMATION_TOKEN }}
+
+      - name: Checkout released browser SDK
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: authara-org/authara-browser
+          ref: ${{ env.BROWSER_TAG }}
+          path: .authara-browser-source
+          token: ${{ env.AUTOMATION_TOKEN }}
+
+      - name: Verify immutable browser source
+        run: |
+          actual_sha="$(git -C .authara-browser-source rev-parse HEAD)"
+          if test "$actual_sha" != "$BROWSER_SHA"; then
+            echo "Browser tag $BROWSER_TAG points to $actual_sha, expected $BROWSER_SHA." >&2
+            exit 1
+          fi
+          actual_version="$(node -p "require('./.authara-browser-source/package.json').version")"
+          if test "$actual_version" != "$BROWSER_VERSION"; then
+            echo "Browser package version $actual_version does not match $BROWSER_VERSION." >&2
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set initial browser peer floor
+        run: |
+          previous_version="$(jq -r '.browser.version' .contract/manifest.json)"
+          if test "$previous_version" = unreleased; then
+            npm pkg set "peerDependencies.@authara/browser=>=$BROWSER_VERSION <1.0.0"
+          fi
+
+      - name: Install exact browser SDK release
+        run: npm install --save-dev --save-exact "@authara/browser@$BROWSER_VERSION"
+
+      - name: Record browser and Core provenance
+        run: |
+          jq -n \
+            --arg browser_version "$BROWSER_VERSION" \
+            --arg browser_tag "$BROWSER_TAG" \
+            --arg browser_commit "$BROWSER_SHA" \
+            --slurpfile source .authara-browser-source/.codegen/manifest.json \
+            '{
+              browser: {
+                repository: "authara-org/authara-browser",
+                version: $browser_version,
+                tag: $browser_tag,
+                commit: $browser_commit
+              },
+              core: $source[0].core
+            }' > .contract/manifest.json
+
+      - name: Check formatting
+        run: npm run check:format
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check browser contract
+        run: npm run check:contract
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --quiet -- package.json package-lock.json .contract/manifest.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create compatibility update pull request
+        if: steps.changes.outputs.changed == 'true'
+        id: pull-request
+        env:
+          GH_TOKEN: ${{ env.AUTOMATION_TOKEN }}
+        run: |
+          branch="automation/authara-browser-${BROWSER_TAG}"
+          title="chore(deps): verify @authara/browser ${BROWSER_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add package.json package-lock.json .contract/manifest.json
+          git commit -m "$title"
+          git push --force-with-lease origin "$branch"
+
+          pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number')"
+          if test -z "$pr_number"; then
+            pr_url="$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$branch" \
+              --title "$title" \
+              --body "Verified against immutable @authara/browser ${BROWSER_VERSION} (${BROWSER_SHA}) and its recorded Authara Core contract.")"
+            pr_number="${pr_url##*/}"
+          fi
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: steps.pull-request.outputs.number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ env.AUTOMATION_TOKEN }}
+        run: >-
+          gh pr merge
+          --repo "$GITHUB_REPOSITORY"
+          --auto
+          --squash
+          "${{ steps.pull-request.outputs.number }}"

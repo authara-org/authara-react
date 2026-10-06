@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Read browser provenance
+        id: provenance
+        run: |
+          browser_version="$(jq -r '.browser.version' .contract/manifest.json)"
+          browser_commit="$(jq -r '.browser.commit' .contract/manifest.json)"
+          echo "browser_version=$browser_version" >> "$GITHUB_OUTPUT"
+          echo "browser_commit=$browser_commit" >> "$GITHUB_OUTPUT"
+          if test "$browser_version" = unreleased; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout recorded browser SDK
+        if: steps.provenance.outputs.released == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: authara-org/authara-browser
+          ref: ${{ steps.provenance.outputs.browser_commit }}
+          path: .authara-browser-source
+          token: ${{ secrets.AUTHARA_SDK_RELEASE_TOKEN || github.token }}
+
+      - name: Verify browser and Core provenance
+        if: steps.provenance.outputs.released == 'true'
+        run: |
+          test "$(node -p "require('./.authara-browser-source/package.json').version")" = "${{ steps.provenance.outputs.browser_version }}"
+          test "$(jq -r '.core.commit' .authara-browser-source/.codegen/manifest.json)" = "$(jq -r '.core.commit' .contract/manifest.json)"
+          test "$(jq -r '.core.contractSha256' .authara-browser-source/.codegen/manifest.json)" = "$(jq -r '.core.contractSha256' .contract/manifest.json)"
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run check:format
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check browser contract
+        run: npm run check:contract
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check package contents
+        run: npm pack --dry-run
