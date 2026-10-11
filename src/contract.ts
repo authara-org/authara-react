@@ -34,13 +34,6 @@ export type GoogleProof = {
   redirect_uri: string;
 };
 
-// shortcut: the released browser SDK still types the legacy proof; remove this
-// compatibility body after its Core-generated Google request includes code.
-export type ReleasedBrowserGoogleProof = {
-  credential: string;
-  nonce: string;
-};
-
 export type AppleProof = {
   code: string;
   state: string;
@@ -57,18 +50,18 @@ export interface AutharaReactClient {
   getAppleLoginOptions(): Promise<AppleLoginOptions>;
   loginWithGoogle(options: {
     audience?: AutharaAudience;
-    body: ReleasedBrowserGoogleProof;
+    body: GoogleProof;
   }): Promise<AuthSession>;
   loginWithApple(options: {
     audience?: AutharaAudience;
     body: AppleProof;
   }): Promise<AuthSession>;
   linkCurrentUserGoogle(options: {
-    body: ReleasedBrowserGoogleProof;
+    body: GoogleProof;
   }): Promise<void>;
   linkCurrentUserApple(options: { body: AppleProof }): Promise<void>;
   reauthenticateWithGoogle(options: {
-    body: ReleasedBrowserGoogleProof & { authentication_challenge_id: string };
+    body: GoogleProof & { authentication_challenge_id: string };
   }): Promise<void>;
   reauthenticateWithApple(options: {
     body: AppleProof & { authentication_challenge_id: string };
@@ -76,7 +69,7 @@ export interface AutharaReactClient {
   completeAccountRecoveryLinkWithGoogle(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
     audience?: AutharaAudience;
-    body: ReleasedBrowserGoogleProof;
+    body: GoogleProof;
   }): Promise<AuthSession>;
   completeAccountRecoveryLinkWithApple(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
