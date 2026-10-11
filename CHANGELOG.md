@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/authara-org/authara-react/compare/v0.1.0...v0.2.0) (2026-10-11)
+
+
+### Features
+
+* add Microsoft authentication ([#5](https://github.com/authara-org/authara-react/issues/5)) ([09b1be7](https://github.com/authara-org/authara-react/commit/09b1be799337a142e27b2e4e433a794d7acfde6a))
+
 ## 0.1.0 (2026-10-11)
 
 
