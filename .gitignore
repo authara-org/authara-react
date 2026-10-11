@@ -1,9 +1,11 @@
 node_modules/
 dist/
+playground-dist/
 *.tgz
 *.log
 .DS_Store
 .authara-browser-source/
+.authara-core-source/
 .env
 .env.*
 !.env.example

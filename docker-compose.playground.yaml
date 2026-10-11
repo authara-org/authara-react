@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16.2
+    environment:
+      POSTGRES_DB: authara
+      POSTGRES_USER: authara
+      POSTGRES_PASSWORD: authara
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authara -d authara"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - playground-postgres:/var/lib/postgresql/data
+
+  migrations:
+    image: ghcr.io/authara-org/authara-migrations:${AUTHARA_MIGRATIONS_VERSION:-v0.2.0}
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: authara
+      POSTGRESQL_USERNAME: authara
+      POSTGRESQL_PASSWORD: authara
+      POSTGRESQL_SSL_MODE: disable
+    command: ["up", "-env=default", "-config=/migrations/dbconfig.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - playground-redis:/data
+
+  authara:
+    image: ghcr.io/authara-org/authara-core:${AUTHARA_CORE_VERSION:-v0.22.0}
+    environment:
+      APP_ENV: dev
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: authara
+      POSTGRESQL_USERNAME: authara
+      POSTGRESQL_PASSWORD: authara
+      POSTGRESQL_SSL_MODE: disable
+      PUBLIC_URL: ${AUTHARA_PUBLIC_URL:-https://playground.authara.org}
+      AUTHARA_JWT_ISSUER: authara-playground
+      AUTHARA_JWT_ACTIVE_KEY_ID: playground
+      AUTHARA_JWT_KEYS: playground:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      AUTHARA_CACHE_PROVIDER: redis
+      AUTHARA_ACCESS_TOKEN_REVOCATION_MODE: immediate
+      AUTHARA_ORG_MODE: ${AUTHARA_ORG_MODE:-multi}
+      AUTHARA_REDIS_HOST: redis
+      AUTHARA_REDIS_PORT: 6379
+      AUTHARA_OAUTH_PROVIDERS: ${AUTHARA_OAUTH_PROVIDERS:-}
+      AUTHARA_OAUTH_GOOGLE_CLIENT_ID: ${AUTHARA_OAUTH_GOOGLE_CLIENT_ID:-}
+      AUTHARA_OAUTH_GOOGLE_CLIENT_SECRET: ${AUTHARA_OAUTH_GOOGLE_CLIENT_SECRET:-}
+      AUTHARA_OAUTH_APPLE_CLIENT_ID: ${AUTHARA_OAUTH_APPLE_CLIENT_ID:-}
+      AUTHARA_OAUTH_APPLE_TEAM_ID: ${AUTHARA_OAUTH_APPLE_TEAM_ID:-}
+      AUTHARA_OAUTH_APPLE_KEY_ID: ${AUTHARA_OAUTH_APPLE_KEY_ID:-}
+      AUTHARA_OAUTH_APPLE_PRIVATE_KEY_BASE64: ${AUTHARA_OAUTH_APPLE_PRIVATE_KEY_BASE64:-}
+      AUTHARA_OAUTH_APPLE_TOKEN_ACTIVE_KEY_ID: ${AUTHARA_OAUTH_APPLE_TOKEN_ACTIVE_KEY_ID:-}
+      AUTHARA_OAUTH_APPLE_TOKEN_KEYS: ${AUTHARA_OAUTH_APPLE_TOKEN_KEYS:-}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  playground:
+    build:
+      context: .
+      dockerfile: playground/Dockerfile
+
+  gateway:
+    image: ghcr.io/authara-org/authara-gateway:v1.2.1
+    ports:
+      - "3000:3000"
+    environment:
+      GATEWAY_BIND: :3000
+      AUTHARA_UPSTREAM: authara:8080
+      APP_UPSTREAM: playground:80
+    depends_on:
+      authara:
+        condition: service_healthy
+      playground:
+        condition: service_started
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      gateway:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  playground-postgres:
+  playground-redis:

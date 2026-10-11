@@ -1,0 +1,11 @@
+*
+!.dockerignore
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.playground.package.json
+!vite.config.ts
+!src/
+!src/**
+!playground/
+!playground/**

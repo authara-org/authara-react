@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const manifest = JSON.parse(
   await readFile(
@@ -15,11 +16,17 @@ if (manifest.browser?.version === "unreleased") {
   process.exit(0);
 }
 
-const executable = process.platform === "win32" ? "tsc.cmd" : "tsc";
-const result = spawnSync(executable, ["-p", "tsconfig.contract.json"], {
-  cwd: new URL("..", import.meta.url),
-  stdio: "inherit",
-  shell: false,
-});
+const executable = fileURLToPath(
+  new URL("../node_modules/typescript/bin/tsc", import.meta.url),
+);
+const result = spawnSync(
+  process.execPath,
+  [executable, "-p", "tsconfig.contract.json"],
+  {
+    cwd: new URL("..", import.meta.url),
+    stdio: "inherit",
+    shell: false,
+  },
+);
 
 process.exit(result.status ?? 1);

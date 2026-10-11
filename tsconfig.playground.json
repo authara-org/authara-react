@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "declaration": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@authara/react": ["./src/index.ts"]
+    }
+  },
+  "include": ["playground", "src"]
+}
