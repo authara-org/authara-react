@@ -10,6 +10,7 @@ import { AppleService, GoogleService } from "./services.js";
 
 type AutharaReactContextValue = {
   apple: AppleService;
+  client: AutharaReactClient;
   google: GoogleService;
 };
 
@@ -30,6 +31,7 @@ export function AutharaProvider({
   const value = useMemo(
     () => ({
       apple: new AppleService(client),
+      client,
       google: new GoogleService(client),
     }),
     [client],

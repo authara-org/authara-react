@@ -1,0 +1,8 @@
+services:
+  authara:
+    image: authara-core-playground:local
+    build:
+      context: ../../../authara-core
+      dockerfile: docker/Dockerfile.prod
+      args:
+        VERSION: local

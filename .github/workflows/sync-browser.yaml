@@ -66,6 +66,7 @@ jobs:
           token: ${{ env.AUTOMATION_TOKEN }}
 
       - name: Verify immutable browser source
+        id: browser-source
         run: |
           actual_sha="$(git -C .authara-browser-source rev-parse HEAD)"
           if test "$actual_sha" != "$BROWSER_SHA"; then
@@ -77,6 +78,27 @@ jobs:
             echo "Browser package version $actual_version does not match $BROWSER_VERSION." >&2
             exit 1
           fi
+          core_sha="$(jq -r '.core.commit' .authara-browser-source/.codegen/manifest.json)"
+          if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid Core commit recorded by the browser release: $core_sha" >&2
+            exit 1
+          fi
+          echo "core_sha=$core_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the browser release's Authara Core contract
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: authara-org/authara
+          ref: ${{ steps.browser-source.outputs.core_sha }}
+          path: .authara-core-source
+          token: ${{ env.AUTOMATION_TOKEN }}
+
+      - name: Verify immutable Core contract
+        run: |
+          expected_sha="$(jq -r '.core.commit' .authara-browser-source/.codegen/manifest.json)"
+          expected_contract="$(jq -r '.core.contractSha256' .authara-browser-source/.codegen/manifest.json)"
+          test "$(git -C .authara-core-source rev-parse HEAD)" = "$expected_sha"
+          test "$(sha256sum .authara-core-source/contract/openapi.yaml | cut -d ' ' -f 1)" = "$expected_contract"
 
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -87,15 +109,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set initial browser peer floor
+      - name: Set browser peer compatibility
         run: |
-          previous_version="$(jq -r '.browser.version' .contract/manifest.json)"
-          if test "$previous_version" = unreleased; then
-            npm pkg set "peerDependencies.@authara/browser=>=$BROWSER_VERSION <1.0.0"
+          IFS=. read -r major minor patch <<< "$BROWSER_VERSION"
+          if test "$major" = 0; then
+            upper="0.$((minor + 1)).0"
+          else
+            upper="$((major + 1)).0.0"
           fi
+          npm pkg set "peerDependencies.@authara/browser=>=$BROWSER_VERSION <$upper"
 
       - name: Install exact browser SDK release
-        run: npm install --save-dev --save-exact "@authara/browser@$BROWSER_VERSION"
+        run: |
+          for attempt in {1..18}; do
+            if test "$(npm view "@authara/browser@$BROWSER_VERSION" version 2>/dev/null || true)" = "$BROWSER_VERSION"; then
+              npm install --save-dev --save-exact "@authara/browser@$BROWSER_VERSION"
+              exit 0
+            fi
+            echo "Waiting for @authara/browser@$BROWSER_VERSION to become visible on npm (attempt $attempt/18)."
+            sleep 10
+          done
+          echo "@authara/browser@$BROWSER_VERSION was not visible on npm after 3 minutes." >&2
+          exit 1
+
+      - name: Generate action error types from Authara Core
+        run: npm run sync:error-contract -- --openapi .authara-core-source/contract/openapi.yaml
+
+      - name: Detect error contract changes
+        id: error-contract
+        run: |
+          if git diff --quiet -- src/generated-error-codes.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Record browser and Core provenance
         run: |
@@ -123,16 +170,22 @@ jobs:
       - name: Check browser contract
         run: npm run check:contract
 
+      - name: Check generated Authara error contract
+        run: npm run check:error-contract -- --openapi .authara-core-source/contract/openapi.yaml
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
 
+      - name: Build playground against the packaged exports
+        run: npm run build:playground:package
+
       - name: Detect changes
         id: changes
         run: |
-          if git diff --quiet -- package.json package-lock.json .contract/manifest.json; then
+          if git diff --quiet -- package.json package-lock.json .contract/manifest.json src/generated-error-codes.ts; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -143,30 +196,40 @@ jobs:
         id: pull-request
         env:
           GH_TOKEN: ${{ env.AUTOMATION_TOKEN }}
+          ERROR_CONTRACT_CHANGED: ${{ steps.error-contract.outputs.changed }}
         run: |
           branch="automation/authara-browser-${BROWSER_TAG}"
-          title="chore(deps): verify @authara/browser ${BROWSER_VERSION}"
+          if test "$ERROR_CONTRACT_CHANGED" = true; then
+            title="feat(contract): support @authara/browser ${BROWSER_VERSION} errors"
+          else
+            title="chore(deps): verify @authara/browser ${BROWSER_VERSION}"
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
-          git add package.json package-lock.json .contract/manifest.json
+          git add package.json package-lock.json .contract/manifest.json src/generated-error-codes.ts
           git commit -m "$title"
           git push --force-with-lease origin "$branch"
 
           pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number')"
           if test -z "$pr_number"; then
+            if test "$ERROR_CONTRACT_CHANGED" = true; then
+              body="Authara's declared button error contract changed. Review the generated error union and any UX handling before merging. Browser: ${BROWSER_VERSION} (${BROWSER_SHA})."
+            else
+              body="Verified against immutable @authara/browser ${BROWSER_VERSION} (${BROWSER_SHA}) and its recorded Authara Core contract."
+            fi
             pr_url="$(gh pr create \
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --head "$branch" \
               --title "$title" \
-              --body "Verified against immutable @authara/browser ${BROWSER_VERSION} (${BROWSER_SHA}) and its recorded Authara Core contract.")"
+              --body "$body")"
             pr_number="${pr_url##*/}"
           fi
           echo "number=$pr_number" >> "$GITHUB_OUTPUT"
 
       - name: Enable auto-merge
-        if: steps.pull-request.outputs.number != ''
+        if: steps.pull-request.outputs.number != '' && steps.error-contract.outputs.changed != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ env.AUTOMATION_TOKEN }}

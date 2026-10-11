@@ -8,15 +8,12 @@ import {
   loadGoogleIdentity,
   type AppleAuth,
   type AppleConfig,
-  type GoogleButtonConfiguration,
-  type GoogleCredentialResponse,
   type GoogleIdentity,
 } from "./provider-sdks.js";
 
 export type GoogleCredential = {
-  credential: string;
-  nonce: string;
-  selectBy?: string;
+  code: string;
+  redirect_uri: string;
 };
 
 export type AppleAuthorization = {
@@ -26,45 +23,48 @@ export type AppleAuthorization = {
 
 type GoogleHandler = (credential: GoogleCredential) => void;
 
-let stateSequence = 0;
-
-function nextState(): string {
-  stateSequence += 1;
-  return `authara-google-${stateSequence}`;
-}
-
 export class GoogleService {
   private optionsPromise?: Promise<GoogleLoginOptions>;
   private sdkPromise?: Promise<GoogleIdentity>;
-  private handlers = new Map<string, GoogleHandler>();
-  private activeState?: string;
 
   constructor(private readonly client: AutharaReactClient) {}
 
-  async render(
-    element: HTMLElement,
-    configuration: GoogleButtonConfiguration,
+  async prepare(
     locale: string | undefined,
     handler: GoogleHandler,
+    errorHandler: (error: Error) => void,
   ): Promise<() => void> {
     const options = await this.options();
-    const google = await this.sdk(locale, options);
-    const state = nextState();
-    this.handlers.set(state, handler);
-
-    google.accounts.id.renderButton(element, {
-      ...configuration,
-      locale,
-      state,
-      click_listener: () => {
-        this.activeState = state;
+    const google = await this.sdk(locale);
+    const client = google.accounts.oauth2.initCodeClient({
+      client_id: options.client_id,
+      scope: "openid email profile",
+      ux_mode: "popup",
+      select_account: true,
+      callback: (response) => {
+        if (response.error) {
+          errorHandler(new Error(response.error_description || response.error));
+          return;
+        }
+        if (!response.code) {
+          errorHandler(
+            new Error("Google did not return an authorization code."),
+          );
+          return;
+        }
+        handler({ code: response.code, redirect_uri: window.location.origin });
+      },
+      error_callback: (error) => {
+        errorHandler(
+          new Error(
+            error.type === "popup_closed"
+              ? "Google sign-in was cancelled."
+              : "Google sign-in could not be opened.",
+          ),
+        );
       },
     });
-
-    return () => {
-      this.handlers.delete(state);
-      if (this.activeState === state) this.activeState = undefined;
-    };
+    return () => client.requestCode();
   }
 
   private options(): Promise<GoogleLoginOptions> {
@@ -77,27 +77,8 @@ export class GoogleService {
     return this.optionsPromise;
   }
 
-  private sdk(
-    locale: string | undefined,
-    options: GoogleLoginOptions,
-  ): Promise<GoogleIdentity> {
-    this.sdkPromise ??= loadGoogleIdentity(locale).then((google) => {
-      google.accounts.id.initialize({
-        client_id: options.client_id,
-        nonce: options.nonce,
-        callback: (response: GoogleCredentialResponse) => {
-          if (!response.credential) return;
-          const state = response.state ?? this.activeState;
-          if (!state) return;
-          this.handlers.get(state)?.({
-            credential: response.credential,
-            nonce: options.nonce,
-            selectBy: response.select_by,
-          });
-        },
-      });
-      return google;
-    });
+  private sdk(locale: string | undefined): Promise<GoogleIdentity> {
+    this.sdkPromise ??= loadGoogleIdentity(locale);
     return this.sdkPromise;
   }
 }

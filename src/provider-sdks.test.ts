@@ -30,12 +30,44 @@ it("loads Google Identity Services only once", async () => {
 
   window.google = {
     accounts: {
-      id: { initialize() {}, renderButton() {} },
+      oauth2: {
+        initCodeClient() {
+          return { requestCode() {} };
+        },
+      },
     },
   };
   script?.dispatchEvent(new Event("load"));
 
   await expect(first).resolves.toBe(window.google);
+});
+
+it("retries after a provider script fails", async () => {
+  const appended: HTMLScriptElement[] = [];
+  vi.spyOn(document.head, "appendChild").mockImplementation((node) => {
+    appended.push(node as HTMLScriptElement);
+    return node;
+  });
+
+  const first = loadGoogleIdentity();
+  const remove = vi.spyOn(appended[0], "remove");
+  appended[0].dispatchEvent(new Event("error"));
+  await expect(first).rejects.toThrow("Could not load Google");
+  expect(remove).toHaveBeenCalledTimes(1);
+
+  const second = loadGoogleIdentity();
+  expect(appended).toHaveLength(2);
+  window.google = {
+    accounts: {
+      oauth2: {
+        initCodeClient() {
+          return { requestCode() {} };
+        },
+      },
+    },
+  };
+  appended[1].dispatchEvent(new Event("load"));
+  await expect(second).resolves.toBe(window.google);
 });
 
 it("rejects conflicting SDK locales", async () => {

@@ -1,10 +1,8 @@
 # @authara/react
 
-Official React components for Authara's Google and Apple browser flows.
-
-The package owns provider SDK loading and React lifecycle integration. HTTP,
-cookies, CSRF protection, sessions, and generated Authara API operations remain
-in [`@authara/browser`](https://www.npmjs.com/package/@authara/browser).
+Official React buttons for complete Authara Google and Apple authentication
+flows. The components load the provider SDK, obtain the provider proof, prepare
+CSRF, call the generated Authara browser client, and return a typed result.
 
 ## Installation
 
@@ -12,117 +10,373 @@ in [`@authara/browser`](https://www.npmjs.com/package/@authara/browser).
 npm install @authara/react @authara/browser react
 ```
 
-## Usage
+## Setup
 
-Create one browser client and place one provider near the root of the page:
+Create one browser client and one provider near the root of the page:
 
 ```tsx
 import { AutharaBrowserClient } from "@authara/browser";
-import {
-  AppleButton,
-  AutharaProvider,
-  GoogleButton
-} from "@authara/react";
+import { AutharaProvider } from "@authara/react";
 
-const authara = new AutharaBrowserClient();
+const authara = new AutharaBrowserClient({
+  automaticRefresh: { audience: "app" },
+});
 
-export function Login() {
+export function App() {
   return (
     <AutharaProvider client={authara}>
-      <GoogleButton
-        onCredential={async ({ credential, nonce }) => {
-          await authara.loginWithGoogle({
-            audience: "app",
-            body: { credential, nonce }
-          });
-        }}
-        onError={console.error}
-      />
-
-      <AppleButton
-        onAuthorization={async ({ code, state }) => {
-          await authara.loginWithApple({
-            audience: "app",
-            body: { code, state }
-          });
-        }}
-        onError={console.error}
-      />
+      <Routes />
     </AutharaProvider>
   );
 }
 ```
 
-The buttons return provider proof instead of choosing an Authara operation.
-The same components therefore work for login, provider linking,
-reauthentication, invitations, and account-recovery proof.
+The provider owns no user or session state. It coordinates Authara's generated
+client and the page-global Google and Apple SDKs.
 
-`AutharaProvider` is deliberately small. It contains no authentication or
-session state. It coordinates the page-global third-party SDK instances so
-Google is initialized once and callbacks are routed to the correct button.
+## Login
 
-## Provider availability
+```tsx
+import { AppleButton, GoogleButton } from "@authara/react";
 
-Authara returns `404 Not Found` from an options operation when that provider is
-disabled. The corresponding button then renders `fallback` (which defaults to
-`null`) and calls `onUnavailable`.
+export function Login() {
+  return (
+    <div>
+      <GoogleButton
+        action="login"
+        audience="app"
+        variant="text"
+        size="large"
+        onSuccess={({ session }) => setCurrentUser(session.user)}
+        onError={handleAuthError}
+      />
+
+      <AppleButton
+        action="login"
+        audience="app"
+        variant="text"
+        size="large"
+        onSuccess={({ session }) => setCurrentUser(session.user)}
+        onError={handleAuthError}
+        onCancel={() => setMessage("Sign in was cancelled.")}
+      />
+    </div>
+  );
+}
+```
+
+`action="login"` supports the `app`, `admin`, and `operator` audiences. The
+default action is `login` and the default audience is `app`.
+
+## Link a provider
 
 ```tsx
 <GoogleButton
-  fallback={<p>Google sign-in is not configured.</p>}
-  onUnavailable={() => reportProviderUnavailable("google")}
-  onCredential={handleGoogleCredential}
+  action="link"
+  onSuccess={() => refreshAccount()}
+  onError={handleAuthError}
+/>
+
+<AppleButton
+  action="link"
+  onSuccess={() => refreshAccount()}
+  onError={handleAuthError}
 />
 ```
 
-Apple user cancellation calls `onCancel`; it is not reported through
-`onError`.
+Linking uses the current Authara session and therefore does not accept an
+audience. Authara may return `recent_authentication_required` when the session
+needs a fresh proof.
+
+## Reauthenticate
+
+```tsx
+<AppleButton
+  action="reauthenticate"
+  authenticationChallengeId={challenge.id}
+  onSuccess={() => retrySensitiveAction()}
+  onError={handleAuthError}
+/>
+```
+
+TypeScript requires `authenticationChallengeId` for reauthentication and
+rejects `audience` for both linking and reauthentication.
+
+## Account collisions
+
+A login with an email owned by another sign-in method returns
+`account_link_required`. The error contains the pending provider, a short-lived
+link ID, and the methods that can prove ownership. Render the matching provider
+button with `action="recover"`:
+
+```tsx
+import type {
+  AutharaAccountRecoveryLink,
+  AutharaButtonError,
+} from "@authara/react";
+
+const [recovery, setRecovery] = useState<AutharaAccountRecoveryLink>();
+
+function handleLoginError(error: AutharaButtonError) {
+  if (error.code === "account_link_required" && error.recovery) {
+    setRecovery(error.recovery);
+    return;
+  }
+  showMessage(error.message);
+}
+
+{recovery?.proof_methods.includes("google") && (
+  <GoogleButton
+    action="recover"
+    recoveryLinkId={recovery.link_id}
+    onSuccess={({ session }) => setCurrentUser(session.user)}
+    onError={handleLoginError}
+  />
+)}
+
+{recovery?.proof_methods.includes("apple") && (
+  <AppleButton
+    action="recover"
+    recoveryLinkId={recovery.link_id}
+    onSuccess={({ session }) => setCurrentUser(session.user)}
+    onError={handleLoginError}
+  />
+)}
+```
+
+This is symmetric: an Apple collision can be proved with an existing Google
+identity, and a Google collision can be proved with an existing Apple identity.
+Authara never links accounts from an email match alone.
+
+## Errors
+
+`onError` receives `AutharaButtonError`. It identifies the failing layer and
+preserves structured Authara metadata:
+
+```tsx
+import type { AutharaButtonError } from "@authara/react";
+
+function handleAuthError(error: AutharaButtonError) {
+  switch (error.code) {
+    case "recent_authentication_required":
+      openReauthentication(error.authenticationChallenge);
+      return;
+    case "auth_method_already_linked":
+      showMessage("That provider is already linked.");
+      return;
+    case "unauthorized":
+      navigate("/login");
+      return;
+    default:
+      showMessage(error.message);
+  }
+}
+```
+
+Useful fields are:
+
+- `source`: `authara`, `provider`, `configuration`, or `consumer`
+- `status`: the HTTP status when Authara responded
+- `code`: the stable Authara error code, or `unknown_authara_error`
+- `serverCode`: an unrecognized server code when `code` is
+  `unknown_authara_error`
+- `authenticationChallenge`: the challenge returned with HTTP 428
+- `reauthenticateUrl`: Authara's optional reauthentication URL
+- `recovery`: typed account-collision recovery details returned with HTTP 409
+- `originalError`: the original provider, SDK, or callback failure
+
+The selected `action` narrows the error-code type passed to `onError`. These
+unions are generated from Core's `x-authara-error-codes` declarations:
+
+- login adds `account_link_required`
+- link adds `auth_method_already_linked` and
+  `recent_authentication_required`
+- reauthentication adds `invalid_authentication_challenge`
+- recovery adds the provider-link and invitation completion errors
+- every action includes its declared authorization, request, availability, and
+  internal codes, plus the local CSRF and unknown-code fallbacks
+
+Apple popup cancellation calls `onCancel`, not `onError`. A provider disabled
+in Authara renders `fallback` and calls `onUnavailable`.
 
 ## Appearance
 
-`GoogleButton` exposes the official Google button configuration: `type`,
-`theme`, `size`, `text`, `shape`, `logo_alignment`, `width`, and `locale`.
+Both components share the simple properties:
 
-`AppleButton` exposes `color`, `border`, `type`, `mode`, and `locale`. Width and
-height are set through the normal React `style` prop. Provider branding remains
-rendered by the official provider SDKs.
+```tsx
+<AppleButton
+  action="login"
+  variant="icon"
+  size="small"
+/>
+
+<GoogleButton
+  action="login"
+  variant="text"
+  size="large"
+  mode="system"
+/>
+```
+
+- `variant`: `text` or `icon`
+- `size`: `small`, `medium`, or `large`
+- `label`: `sign-in`, `sign-up`, or `continue`
+
+Text-button heights are `30px`, `36px`, and `44px`. Icon-only buttons are
+larger at `36px`, `44px`, and `52px` for the same three size names.
+
+`mode` accepts `"light"`, `"dark"`, or `"system"` and defaults to `"light"`.
+`system` follows live changes to `prefers-color-scheme`. Light mode uses the
+black Apple button and Google's light preset. Dark mode uses the white Apple
+button and Google's dark preset. Apple is borderless in both modes. Explicit
+Apple `color` or `border`, or Google `theme` or `border`, properties take
+precedence over these defaults.
+
+Google additionally exposes `theme`, `border`, `shape`, `logoAlignment`, and
+`width`.
+Apple exposes `color`, `border`, `borderRadius`, `align`, and `width`.
+Both providers accept `buttonText` to localize or otherwise override the
+visible label and the accessible name of icon-only buttons.
+Text and icon variants both default to a `12px` corner radius. Apple's
+`borderRadius` accepts its supported `0`–`50` range; Google's `shape` can still
+select `pill`, `circle`, `square`, or `rectangular` explicitly.
+Both providers use an Authara-rendered, centered logo-and-label structure.
+Google's `light`, `dark`, and `neutral` themes use Google's required colors,
+spacing, and typography. Make Google Sans Medium available in your application
+as required by Google's branding guidelines; this package does not inject a
+font download or redistribute Google's font. The provider SDKs still own the
+underlying credential and authorization flows. Google's visible control is a
+real native button; it starts the popup authorization-code flow directly and
+does not place an invisible provider button over Authara's presentation.
+
+## Advanced provider-proof components
+
+Applications with a custom multi-step operation can use the lower-level
+components:
+
+```tsx
+<GoogleCredentialButton onCredential={handleGoogleProof} />
+<AppleCredentialButton onAuthorization={handleAppleProof} />
+```
+
+Most applications should use `GoogleButton` and `AppleButton`; the lower-level
+components deliberately expose Google's one-time code and browser origin or
+Apple's code and state.
+
+## Real local playground
+
+The Vite playground uses the real Google and Apple scripts and sends real HTTP
+requests to Authara. It has no provider or API mocks.
+
+For fast component development, start an Authara gateway with Google and/or
+Apple configured, then run:
+
+```bash
+npm ci
+npm run dev
+```
+
+Core reads Google configuration from `AUTHARA_OAUTH_GOOGLE_CLIENT_ID` and
+`AUTHARA_OAUTH_GOOGLE_CLIENT_SECRET`. Keep the secret on Core; React never
+receives it. Apple uses `AUTHARA_OAUTH_APPLE_CLIENT_ID`, `AUTHARA_OAUTH_APPLE_TEAM_ID`,
+`AUTHARA_OAUTH_APPLE_KEY_ID`, `AUTHARA_OAUTH_APPLE_PRIVATE_KEY_BASE64`, and the
+Apple token-key settings documented by Authara Core.
+
+By default, Vite proxies `/auth` to `http://localhost:3001`. Override the Core
+or gateway address when needed:
+
+```bash
+AUTHARA_PLAYGROUND_PROXY_TARGET=http://localhost:3000 npm run dev
+```
+
+Alternatively, set `VITE_AUTHARA_BASE_URL` to call an Authara origin directly.
+That origin must allow the playground origin and credentialed browser requests.
+The same-origin proxy is usually simpler.
+
+To rehearse the way an operator deploys the packages, use the version-pinned
+Compose stack instead. It builds the package first, builds the playground
+against the package's public `dist` exports, and serves it through Authara
+Gateway alongside released Core, migrations, PostgreSQL, and Redis images. A
+`cloudflared` container publishes that gateway through the named tunnel:
+
+```bash
+cp .env.example .env
+# Paste the tunnel's eyJ... token into CLOUDFLARE_TUNNEL_TOKEN in .env.
+docker compose -f docker-compose.playground.yaml up --build
+```
+
+While testing unreleased Core contract changes from this workspace, add the
+local override. It keeps the operator-style stack but builds the neighboring
+`authara-core` checkout instead of pulling the released Core image:
+
+```bash
+docker compose \
+  -f docker-compose.playground.yaml \
+  -f docker-compose.playground.local.yaml \
+  up --build
+```
+
+The Cloudflare route for `playground.authara.org` must use
+`http://gateway:3000` as its service URL because the connector runs inside the
+Compose network. Open `https://playground.authara.org`; `http://localhost:3000`
+remains available for direct local debugging.
+
+After configuring Google and Apple, fill their values in `.env` and set
+`AUTHARA_OAUTH_PROVIDERS=google,apple`. Until then, leave the provider list
+empty; the playground displays the disabled-provider fallbacks instead of
+attempting OAuth. Never commit `.env` or the tunnel token.
+
+The Compose file defaults to the exact Core and migrations versions recorded
+for this React contract; override `AUTHARA_CORE_VERSION` and
+`AUTHARA_MIGRATIONS_VERSION` only when deliberately testing another released
+pair.
+
+For the Compose deployment, configure both providers with the public origin
+`https://playground.authara.org`. The Google redirect URI is
+`https://playground.authara.org/auth/oauth/google/callback`; the Apple domain is
+`playground.authara.org` and its return URL is
+`https://playground.authara.org/auth/oauth/apple/callback`.
+
+The playground covers:
+
+- real login for `app`, `admin`, and `operator`
+- linking Google or Apple to the current account
+- signed-out Google-to-Apple and Apple-to-Google account-collision recovery
+- Google or Apple reauthentication with a challenge UUID
+- text and icon variants in all three sizes
+- disabled-provider fallbacks, cancellation, and structured errors
+- current-session inspection without displaying access or refresh tokens
+
+“Request challenge” calls Authara's recent-authentication check. A fresh session
+returns success without a challenge; an old session returns HTTP 428 and the
+playground fills the challenge UUID automatically.
+
+To rehearse account-collision recovery, use “Sign out,” select “Recover account
+collision,” and attempt normal Google or Apple login with an email already
+owned by the other provider. Authara's `409 account_link_required` response
+already contains the pending link, so the playground immediately renders the
+available existing-account proof buttons. It creates and consumes Core's real
+ten-minute `link_id`; it does not simulate either provider response.
 
 ## Contract synchronization
 
-The components never contain Authara route strings. They consume the generated
-`AutharaBrowserClient` operation methods:
+The published components contain no Authara route strings. They call methods on
+the generated `@authara/browser` client. The package's compatibility manifest
+and synchronization workflow bind each React release to an immutable browser
+SDK release and its Authara Core OpenAPI provenance.
 
-- `getGoogleLoginOptions()`
-- `getAppleLoginOptions()`
+Each Browser release triggers a compatibility PR. The workflow waits for npm
+registry propagation, verifies the Browser and Core commits and OpenAPI hash,
+updates the exact Browser development dependency, and regenerates the action
+error unions from Core. Route/type-compatible updates may auto-merge. A changed
+error union deliberately requires human review so component mechanics and the
+documented application handling can be updated when necessary.
 
-`.contract/manifest.json` records the exact browser SDK release and its
-immutable Authara Core OpenAPI provenance. `npm run check:contract` performs a
-TypeScript structural compatibility check against that exact browser SDK.
-
-`.github/workflows/sync-browser.yaml` receives each
-`authara-browser-released` event, installs the exact released browser package,
-copies its Core provenance, runs the full checks, and opens an automated pull
-request. This keeps route and schema changes flowing in this order:
-
-```text
-Authara Core OpenAPI release
-  -> generated @authara/browser release
-  -> @authara/react contract check and dependency PR
-```
-
-The initial manifest is intentionally marked `unreleased`. Publishing remains
-blocked until a browser SDK release containing the Apple operations has passed
-the synchronization workflow.
-
-## Design guarantees
-
-- No hidden login or redirect behavior
-- No Authara route duplication
-- Provider scripts are loaded once
-- Safe effect cleanup for React Strict Mode
-- Fresh Apple state and nonce immediately before authorization
-- Disabled providers disappear cleanly
-- React 18 and 19 peer support
+Provider operations are discovered from Core's `get…LoginOptions` operations,
+so Microsoft error declarations will enter the generated unions automatically.
+A Microsoft button still needs its provider-SDK adapter and branded component;
+it can use the same `login`, `link`, `reauthenticate`, and `recover` action
+contract without a separate collision design.
 
 ## License
 

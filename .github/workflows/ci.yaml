@@ -18,8 +18,10 @@ jobs:
         run: |
           browser_version="$(jq -r '.browser.version' .contract/manifest.json)"
           browser_commit="$(jq -r '.browser.commit' .contract/manifest.json)"
+          core_commit="$(jq -r '.core.commit' .contract/manifest.json)"
           echo "browser_version=$browser_version" >> "$GITHUB_OUTPUT"
           echo "browser_commit=$browser_commit" >> "$GITHUB_OUTPUT"
+          echo "core_commit=$core_commit" >> "$GITHUB_OUTPUT"
           if test "$browser_version" = unreleased; then
             echo "released=false" >> "$GITHUB_OUTPUT"
           else
@@ -42,6 +44,21 @@ jobs:
           test "$(jq -r '.core.commit' .authara-browser-source/.codegen/manifest.json)" = "$(jq -r '.core.commit' .contract/manifest.json)"
           test "$(jq -r '.core.contractSha256' .authara-browser-source/.codegen/manifest.json)" = "$(jq -r '.core.contractSha256' .contract/manifest.json)"
 
+      - name: Checkout recorded Authara Core contract
+        if: steps.provenance.outputs.released == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: authara-org/authara
+          ref: ${{ steps.provenance.outputs.core_commit }}
+          path: .authara-core-source
+          token: ${{ secrets.AUTHARA_SDK_RELEASE_TOKEN || github.token }}
+
+      - name: Verify immutable Core contract
+        if: steps.provenance.outputs.released == 'true'
+        run: |
+          test "$(git -C .authara-core-source rev-parse HEAD)" = "${{ steps.provenance.outputs.core_commit }}"
+          test "$(sha256sum .authara-core-source/contract/openapi.yaml | cut -d ' ' -f 1)" = "$(jq -r '.core.contractSha256' .contract/manifest.json)"
+
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -60,11 +77,18 @@ jobs:
       - name: Check browser contract
         run: npm run check:contract
 
+      - name: Check generated Authara error contract
+        if: steps.provenance.outputs.released == 'true'
+        run: npm run check:error-contract -- --openapi .authara-core-source/contract/openapi.yaml
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
+
+      - name: Build playground against the packaged exports
+        run: npm run build:playground:package
 
       - name: Check package contents
         run: npm pack --dry-run
