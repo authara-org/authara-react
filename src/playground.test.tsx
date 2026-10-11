@@ -93,6 +93,29 @@ vi.mock("@authara/react", () => ({
       {action === "recover" ? "Prove with Apple" : "Attempt Apple login"}
     </button>
   ),
+  MicrosoftButton: ({
+    action,
+    mode,
+    onSuccess,
+  }: {
+    action: "login" | "recover";
+    mode?: string;
+    onSuccess?: (result: unknown) => void;
+  }) => (
+    <button
+      type="button"
+      data-color-mode={mode}
+      onClick={() =>
+        action === "recover"
+          ? onSuccess?.({ action, provider: "microsoft", session })
+          : undefined
+      }
+    >
+      {action === "recover"
+        ? "Prove with Microsoft"
+        : "Attempt Microsoft login"}
+    </button>
+  ),
 }));
 
 describe("provider playground", () => {
@@ -164,15 +187,19 @@ describe("provider playground", () => {
     expect(result.getByText("No authenticated account")).toBeTruthy();
   });
 
-  it("switches both provider buttons with the mode control", () => {
+  it("switches every provider button with the mode control", () => {
     const result = render(<App />);
     const google = result.getByRole("button", {
       name: "Attempt Google login",
     });
     const apple = result.getByRole("button", { name: "Attempt Apple login" });
+    const microsoft = result.getByRole("button", {
+      name: "Attempt Microsoft login",
+    });
 
     expect(google.getAttribute("data-color-mode")).toBe("light");
     expect(apple.getAttribute("data-color-mode")).toBe("light");
+    expect(microsoft.getAttribute("data-color-mode")).toBe("light");
     expect(
       result.container
         .querySelector(".preview-card")
@@ -185,6 +212,7 @@ describe("provider playground", () => {
 
     expect(google.getAttribute("data-color-mode")).toBe("system");
     expect(apple.getAttribute("data-color-mode")).toBe("system");
+    expect(microsoft.getAttribute("data-color-mode")).toBe("system");
     expect(
       result.container
         .querySelector(".preview-card")

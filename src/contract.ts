@@ -12,9 +12,13 @@ import type {
 
 export type AutharaAudience = "app" | "admin" | "operator";
 export type AutharaAction = "login" | "link" | "reauthenticate" | "recover";
-export type AutharaProviderName = "apple" | "google";
-export type AutharaAccountRecoveryLink = BrowserAccountRecoveryLink & {
+export type AutharaProviderName = "apple" | "google" | "microsoft";
+export type AutharaAccountRecoveryLink = Omit<
+  BrowserAccountRecoveryLink,
+  "provider" | "proof_methods"
+> & {
   provider: AutharaProviderName;
+  proof_methods: Array<"password" | AutharaProviderName>;
 };
 
 export interface GoogleLoginOptions {
@@ -29,6 +33,12 @@ export interface AppleLoginOptions {
   nonce: string;
 }
 
+export interface MicrosoftLoginOptions {
+  client_id: string;
+  authority: string;
+  nonce: string;
+}
+
 export type GoogleProof = {
   code: string;
   redirect_uri: string;
@@ -39,10 +49,15 @@ export type AppleProof = {
   state: string;
 };
 
+export type MicrosoftProof = {
+  credential: string;
+  nonce: string;
+};
+
 /**
  * The generated @authara/browser contract slice used by the React components.
- * AutharaBrowserClient satisfies this interface once both providers are
- * available in the released Core contract.
+ * AutharaBrowserClient satisfies the required provider methods from the
+ * released Core contract. Microsoft remains optional during SDK rollout.
  */
 export interface AutharaReactClient {
   getCsrfToken(): Promise<unknown>;
@@ -73,6 +88,23 @@ export interface AutharaReactClient {
     linkID: AutharaAccountRecoveryLink["link_id"];
     audience?: "app";
     body: AppleProof;
+  }): Promise<AuthSession>;
+
+  // Optional until @authara/browser is regenerated from the Core contract that
+  // introduced Microsoft. The button renders its fallback on older clients.
+  getMicrosoftLoginOptions?(): Promise<MicrosoftLoginOptions>;
+  loginWithMicrosoft?(options: {
+    audience?: AutharaAudience;
+    body: MicrosoftProof;
+  }): Promise<AuthSession>;
+  linkCurrentUserMicrosoft?(options: { body: MicrosoftProof }): Promise<void>;
+  reauthenticateWithMicrosoft?(options: {
+    body: MicrosoftProof & { authentication_challenge_id: string };
+  }): Promise<void>;
+  completeAccountRecoveryLinkWithMicrosoft?(options: {
+    linkID: AutharaAccountRecoveryLink["link_id"];
+    audience?: "app";
+    body: MicrosoftProof;
   }): Promise<AuthSession>;
 }
 

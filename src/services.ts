@@ -2,7 +2,9 @@ import type {
   AppleLoginOptions,
   AutharaReactClient,
   GoogleLoginOptions,
+  MicrosoftLoginOptions,
 } from "./contract.js";
+import type { AuthenticationResult, PopupRequest } from "@azure/msal-browser";
 import {
   loadAppleIdentity,
   loadGoogleIdentity,
@@ -19,6 +21,21 @@ export type GoogleCredential = {
 export type AppleAuthorization = {
   code: string;
   state: string;
+};
+
+export type MicrosoftCredential = {
+  credential: string;
+  nonce: string;
+};
+
+type MicrosoftApplication = {
+  loginPopup(request: PopupRequest): Promise<AuthenticationResult>;
+};
+
+type MicrosoftRuntime = {
+  application: MicrosoftApplication;
+  options: MicrosoftLoginOptions;
+  redirectUri: string;
 };
 
 type GoogleHandler = (credential: GoogleCredential) => void;
@@ -150,5 +167,85 @@ export class AppleService {
     } finally {
       element.removeAttribute("id");
     }
+  }
+}
+
+export class MicrosoftService {
+  private optionsPromise?: Promise<MicrosoftLoginOptions>;
+  private runtime?: MicrosoftRuntime;
+  private runtimePromise?: Promise<MicrosoftRuntime>;
+
+  constructor(private readonly client: AutharaReactClient) {}
+
+  async prepare(): Promise<void> {
+    if (this.runtime) return;
+    this.runtimePromise ??= Promise.all([
+      this.options(),
+      import("@azure/msal-browser"),
+    ])
+      .then(async ([options, { PublicClientApplication }]) => {
+        const redirectUri = `${window.location.origin}/auth/oauth/microsoft/redirect`;
+        const application = new PublicClientApplication({
+          auth: {
+            clientId: options.client_id,
+            authority: options.authority,
+            redirectUri,
+          },
+          cache: { cacheLocation: "sessionStorage" },
+        });
+        await application.initialize();
+        this.runtime = { application, options, redirectUri };
+        return this.runtime;
+      })
+      .catch((error) => {
+        this.runtimePromise = undefined;
+        throw error;
+      });
+    await this.runtimePromise;
+  }
+
+  authorize(): Promise<MicrosoftCredential> {
+    const runtime = this.runtime;
+    if (!runtime) {
+      return Promise.reject(
+        new Error("Microsoft authentication is still loading."),
+      );
+    }
+    this.runtime = undefined;
+    this.runtimePromise = undefined;
+    this.optionsPromise = undefined;
+    const resultPromise = runtime.application.loginPopup({
+      scopes: ["openid", "profile", "email"],
+      nonce: runtime.options.nonce,
+      prompt: "select_account",
+      redirectUri: runtime.redirectUri,
+      overrideInteractionInProgress: true,
+    });
+    return resultPromise.then((result) => {
+      if (!result.idToken) {
+        throw new Error("Microsoft did not return an ID token.");
+      }
+      return {
+        credential: result.idToken,
+        nonce: runtime.options.nonce,
+      };
+    });
+  }
+
+  private options(): Promise<MicrosoftLoginOptions> {
+    if (!this.client.getMicrosoftLoginOptions) {
+      return Promise.reject({
+        status: 404,
+        message:
+          "This @authara/browser client does not include Microsoft authentication.",
+      });
+    }
+    this.optionsPromise ??= this.client
+      .getMicrosoftLoginOptions()
+      .catch((error) => {
+        this.optionsPromise = undefined;
+        throw error;
+      });
+    return this.optionsPromise;
   }
 }
