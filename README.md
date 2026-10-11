@@ -1,6 +1,6 @@
 # @authara/react
 
-Official React buttons for complete Authara Google and Apple authentication
+Official React buttons for complete Authara Google, Apple, and Microsoft authentication
 flows. The components load the provider SDK, obtain the provider proof, prepare
 CSRF, call the generated Authara browser client, and return a typed result.
 
@@ -32,12 +32,12 @@ export function App() {
 ```
 
 The provider owns no user or session state. It coordinates Authara's generated
-client and the page-global Google and Apple SDKs.
+client and the external-provider SDKs.
 
 ## Login
 
 ```tsx
-import { AppleButton, GoogleButton } from "@authara/react";
+import { AppleButton, GoogleButton, MicrosoftButton } from "@authara/react";
 
 export function Login() {
   return (
@@ -52,6 +52,16 @@ export function Login() {
       />
 
       <AppleButton
+        action="login"
+        audience="app"
+        variant="text"
+        size="large"
+        onSuccess={({ session }) => setCurrentUser(session.user)}
+        onError={handleAuthError}
+        onCancel={() => setMessage("Sign in was cancelled.")}
+      />
+
+      <MicrosoftButton
         action="login"
         audience="app"
         variant="text"
@@ -82,6 +92,12 @@ default action is `login` and the default audience is `app`.
   onSuccess={() => refreshAccount()}
   onError={handleAuthError}
 />
+
+<MicrosoftButton
+  action="link"
+  onSuccess={() => refreshAccount()}
+  onError={handleAuthError}
+/>
 ```
 
 Linking uses the current Authara session and therefore does not accept an
@@ -92,6 +108,13 @@ needs a fresh proof.
 
 ```tsx
 <AppleButton
+  action="reauthenticate"
+  authenticationChallengeId={challenge.id}
+  onSuccess={() => retrySensitiveAction()}
+  onError={handleAuthError}
+/>
+
+<MicrosoftButton
   action="reauthenticate"
   authenticationChallengeId={challenge.id}
   onSuccess={() => retrySensitiveAction()}
@@ -125,28 +148,43 @@ function handleLoginError(error: AutharaButtonError) {
   showMessage(error.message);
 }
 
-{recovery?.proof_methods.includes("google") && (
-  <GoogleButton
-    action="recover"
-    recoveryLinkId={recovery.link_id}
-    onSuccess={({ session }) => setCurrentUser(session.user)}
-    onError={handleLoginError}
-  />
-)}
+{
+  recovery?.proof_methods.includes("google") && (
+    <GoogleButton
+      action="recover"
+      recoveryLinkId={recovery.link_id}
+      onSuccess={({ session }) => setCurrentUser(session.user)}
+      onError={handleLoginError}
+    />
+  );
+}
 
-{recovery?.proof_methods.includes("apple") && (
-  <AppleButton
-    action="recover"
-    recoveryLinkId={recovery.link_id}
-    onSuccess={({ session }) => setCurrentUser(session.user)}
-    onError={handleLoginError}
-  />
-)}
+{
+  recovery?.proof_methods.includes("apple") && (
+    <AppleButton
+      action="recover"
+      recoveryLinkId={recovery.link_id}
+      onSuccess={({ session }) => setCurrentUser(session.user)}
+      onError={handleLoginError}
+    />
+  );
+}
+
+{
+  recovery?.proof_methods.includes("microsoft") && (
+    <MicrosoftButton
+      action="recover"
+      recoveryLinkId={recovery.link_id}
+      onSuccess={({ session }) => setCurrentUser(session.user)}
+      onError={handleLoginError}
+    />
+  );
+}
 ```
 
-This is symmetric: an Apple collision can be proved with an existing Google
-identity, and a Google collision can be proved with an existing Apple identity.
-Authara never links accounts from an email match alone.
+The flow is symmetric across external providers: a collision can be proved
+with any existing Google, Apple, or Microsoft identity returned in
+`proof_methods`. Authara never links accounts from an email match alone.
 
 ## Errors
 
@@ -196,12 +234,12 @@ unions are generated from Core's `x-authara-error-codes` declarations:
 - every action includes its declared authorization, request, availability, and
   internal codes, plus the local CSRF and unknown-code fallbacks
 
-Apple popup cancellation calls `onCancel`, not `onError`. A provider disabled
+Apple and Microsoft popup cancellation calls `onCancel`, not `onError`. A provider disabled
 in Authara renders `fallback` and calls `onUnavailable`.
 
 ## Appearance
 
-Both components share the simple properties:
+All three components share the simple properties:
 
 ```tsx
 <AppleButton
@@ -216,6 +254,8 @@ Both components share the simple properties:
   size="large"
   mode="system"
 />
+
+<MicrosoftButton action="login" variant="text" size="large" mode="system" />
 ```
 
 - `variant`: `text` or `icon`
@@ -235,12 +275,13 @@ precedence over these defaults.
 Google additionally exposes `theme`, `border`, `shape`, `logoAlignment`, and
 `width`.
 Apple exposes `color`, `border`, `borderRadius`, `align`, and `width`.
-Both providers accept `buttonText` to localize or otherwise override the
+Microsoft exposes `border`, `align`, and `width`. All providers accept
+`buttonText` to localize or otherwise override the
 visible label and the accessible name of icon-only buttons.
 Text and icon variants both default to a `12px` corner radius. Apple's
 `borderRadius` accepts its supported `0`–`50` range; Google's `shape` can still
 select `pill`, `circle`, `square`, or `rectangular` explicitly.
-Both providers use an Authara-rendered, centered logo-and-label structure.
+All providers use an Authara-rendered, centered logo-and-label structure.
 Google's `light`, `dark`, and `neutral` themes use Google's required colors,
 spacing, and typography. Make Google Sans Medium available in your application
 as required by Google's branding guidelines; this package does not inject a
@@ -257,15 +298,16 @@ components:
 ```tsx
 <GoogleCredentialButton onCredential={handleGoogleProof} />
 <AppleCredentialButton onAuthorization={handleAppleProof} />
+<MicrosoftCredentialButton onCredential={handleMicrosoftProof} />
 ```
 
-Most applications should use `GoogleButton` and `AppleButton`; the lower-level
-components deliberately expose Google's one-time code and browser origin or
-Apple's code and state.
+Most applications should use `GoogleButton`, `AppleButton`, and
+`MicrosoftButton`; the lower-level components deliberately expose the
+short-lived provider proofs used by Core.
 
 ## Real local playground
 
-The Vite playground uses the real Google and Apple scripts and sends real HTTP
+The Vite playground uses the real Google, Apple, and Microsoft SDKs and sends real HTTP
 requests to Authara. It has no provider or API mocks.
 
 For fast component development, start an Authara gateway with Google and/or
@@ -281,6 +323,11 @@ Core reads Google configuration from `AUTHARA_OAUTH_GOOGLE_CLIENT_ID` and
 receives it. Apple uses `AUTHARA_OAUTH_APPLE_CLIENT_ID`, `AUTHARA_OAUTH_APPLE_TEAM_ID`,
 `AUTHARA_OAUTH_APPLE_KEY_ID`, `AUTHARA_OAUTH_APPLE_PRIVATE_KEY_BASE64`, and the
 Apple token-key settings documented by Authara Core.
+Microsoft uses `AUTHARA_OAUTH_MICROSOFT_CLIENT_ID` and
+`AUTHARA_OAUTH_MICROSOFT_TENANT_ID`; the browser obtains its authority and
+one-time nonce from Core. Register the exact SPA redirect URI
+`https://your-domain/auth/oauth/microsoft/redirect` in Microsoft Entra; Core
+serves the MSAL redirect bridge at that path.
 
 By default, Vite proxies `/auth` to `http://localhost:3001`. Override the Core
 or gateway address when needed:
@@ -321,8 +368,8 @@ The Cloudflare route for `playground.authara.org` must use
 Compose network. Open `https://playground.authara.org`; `http://localhost:3000`
 remains available for direct local debugging.
 
-After configuring Google and Apple, fill their values in `.env` and set
-`AUTHARA_OAUTH_PROVIDERS=google,apple`. Until then, leave the provider list
+After configuring the providers, fill their values in `.env` and set
+`AUTHARA_OAUTH_PROVIDERS=google,apple,microsoft`. Until then, leave the provider list
 empty; the playground displays the disabled-provider fallbacks instead of
 attempting OAuth. Never commit `.env` or the tunnel token.
 
@@ -331,18 +378,21 @@ for this React contract; override `AUTHARA_CORE_VERSION` and
 `AUTHARA_MIGRATIONS_VERSION` only when deliberately testing another released
 pair.
 
-For the Compose deployment, configure both providers with the public origin
+For the Compose deployment, configure all providers with the public origin
 `https://playground.authara.org`. The Google redirect URI is
 `https://playground.authara.org/auth/oauth/google/callback`; the Apple domain is
 `playground.authara.org` and its return URL is
 `https://playground.authara.org/auth/oauth/apple/callback`.
+Register
+`https://playground.authara.org/auth/oauth/microsoft/redirect` as the Microsoft
+SPA redirect URI.
 
 The playground covers:
 
 - real login for `app`, `admin`, and `operator`
-- linking Google or Apple to the current account
-- signed-out Google-to-Apple and Apple-to-Google account-collision recovery
-- Google or Apple reauthentication with a challenge UUID
+- linking Google, Apple, or Microsoft to the current account
+- signed-out cross-provider account-collision recovery
+- Google, Apple, or Microsoft reauthentication with a challenge UUID
 - text and icon variants in all three sizes
 - disabled-provider fallbacks, cancellation, and structured errors
 - current-session inspection without displaying access or refresh tokens
@@ -352,8 +402,8 @@ returns success without a challenge; an old session returns HTTP 428 and the
 playground fills the challenge UUID automatically.
 
 To rehearse account-collision recovery, use “Sign out,” select “Recover account
-collision,” and attempt normal Google or Apple login with an email already
-owned by the other provider. Authara's `409 account_link_required` response
+collision,” and attempt a normal external-provider login with an email already
+owned by another method. Authara's `409 account_link_required` response
 already contains the pending link, so the playground immediately renders the
 available existing-account proof buttons. It creates and consumes Core's real
 ten-minute `link_id`; it does not simulate either provider response.
@@ -373,10 +423,10 @@ error union deliberately requires human review so component mechanics and the
 documented application handling can be updated when necessary.
 
 Provider operations are discovered from Core's `get…LoginOptions` operations,
-so Microsoft error declarations will enter the generated unions automatically.
-A Microsoft button still needs its provider-SDK adapter and branded component;
-it can use the same `login`, `link`, `reauthenticate`, and `recover` action
-contract without a separate collision design.
+so Microsoft error declarations enter the generated unions automatically. The
+Microsoft client methods are optional locally so this package still accepts the
+currently released Browser client and renders `fallback`; they become active
+when Browser is regenerated from the Microsoft-enabled Core OpenAPI contract.
 
 ## License
 

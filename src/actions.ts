@@ -5,6 +5,7 @@ import type {
   AutharaAudience,
   AutharaReactClient,
   GoogleProof,
+  MicrosoftProof,
 } from "./contract.js";
 
 export type ResolvedAutharaAction =
@@ -96,6 +97,60 @@ export async function runAppleAction(
         }),
       };
   }
+}
+
+export async function runMicrosoftAction(
+  client: AutharaReactClient,
+  selected: ResolvedAutharaAction,
+  proof: MicrosoftProof,
+): Promise<AutharaActionSuccess<"microsoft">> {
+  await client.getCsrfToken();
+  switch (selected.action) {
+    case "login":
+      if (!client.loginWithMicrosoft) throw microsoftClientUnavailable();
+      return {
+        action: "login",
+        provider: "microsoft",
+        session: await client.loginWithMicrosoft({
+          audience: selected.audience,
+          body: proof,
+        }),
+      };
+    case "link":
+      if (!client.linkCurrentUserMicrosoft) throw microsoftClientUnavailable();
+      await client.linkCurrentUserMicrosoft({ body: proof });
+      return { action: "link", provider: "microsoft" };
+    case "reauthenticate":
+      if (!client.reauthenticateWithMicrosoft)
+        throw microsoftClientUnavailable();
+      await client.reauthenticateWithMicrosoft({
+        body: {
+          ...proof,
+          authentication_challenge_id: selected.authenticationChallengeId,
+        },
+      });
+      return { action: "reauthenticate", provider: "microsoft" };
+    case "recover":
+      if (!client.completeAccountRecoveryLinkWithMicrosoft)
+        throw microsoftClientUnavailable();
+      return {
+        action: "recover",
+        provider: "microsoft",
+        session: await client.completeAccountRecoveryLinkWithMicrosoft({
+          linkID: selected.recoveryLinkId,
+          audience: selected.audience,
+          body: proof,
+        }),
+      };
+  }
+}
+
+function microsoftClientUnavailable() {
+  return {
+    status: 404,
+    message:
+      "This @authara/browser client does not include Microsoft authentication.",
+  };
 }
 
 export function resolveAction(

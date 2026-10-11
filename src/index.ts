@@ -14,6 +14,14 @@ export {
   type GoogleButtonVariant,
   type GoogleCredentialButtonProps,
 } from "./GoogleButton.js";
+export {
+  MicrosoftButton,
+  MicrosoftCredentialButton,
+  type MicrosoftButtonLabel,
+  type MicrosoftButtonProps,
+  type MicrosoftButtonVariant,
+  type MicrosoftCredentialButtonProps,
+} from "./MicrosoftButton.js";
 export { AutharaProvider, type AutharaProviderProps } from "./context.js";
 export type {
   AutharaColorMode,
@@ -40,11 +48,14 @@ export type {
   AutharaReactClient,
   GoogleProof,
   GoogleLoginOptions,
+  MicrosoftLoginOptions,
+  MicrosoftProof,
   MaybePromise,
 } from "./contract.js";
 export {
   AutharaButtonError,
   isAppleCancellation,
+  isMicrosoftCancellation,
   isAutharaButtonError,
   isProviderUnavailable,
   type AutharaAuthenticationChallenge,
@@ -56,4 +67,8 @@ export {
   type AutharaRecoveryErrorCode,
   type AutharaReauthenticationErrorCode,
 } from "./errors.js";
-export type { AppleAuthorization, GoogleCredential } from "./services.js";
+export type {
+  AppleAuthorization,
+  GoogleCredential,
+  MicrosoftCredential,
+} from "./services.js";

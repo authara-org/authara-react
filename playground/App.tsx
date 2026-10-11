@@ -4,6 +4,7 @@ import {
   AppleButton,
   AutharaProvider,
   GoogleButton,
+  MicrosoftButton,
   type AutharaAction,
   type AutharaAccountRecoveryLink,
   type AutharaActionSuccess,
@@ -93,6 +94,34 @@ function RealButton({
         {...shared}
         action="login"
         audience={audience}
+        onSuccess={onSuccess}
+      />
+    );
+  }
+
+  if (provider === "microsoft") {
+    if (action === "link") {
+      return (
+        <MicrosoftButton {...shared} action="link" onSuccess={onSuccess} />
+      );
+    }
+    if (action === "reauthenticate") {
+      return (
+        <MicrosoftButton
+          {...shared}
+          action="reauthenticate"
+          authenticationChallengeId={authenticationChallengeId}
+          onCancel={onCancel}
+          onSuccess={onSuccess}
+        />
+      );
+    }
+    return (
+      <MicrosoftButton
+        {...shared}
+        action="login"
+        audience={audience}
+        onCancel={onCancel}
         onSuccess={onSuccess}
       />
     );
@@ -270,9 +299,9 @@ export function App() {
             <p className="eyebrow">@authara/react · real integration</p>
             <h1>Provider button playground</h1>
             <p>
-              These controls load the real Google and Apple SDKs and call your
-              running Authara instance. No credentials or provider responses are
-              mocked.
+              These controls load the real Google, Apple, and Microsoft SDKs and
+              call your running Authara instance. No credentials or provider
+              responses are mocked.
             </p>
           </div>
           <div className="connection">
@@ -404,44 +433,46 @@ export function App() {
               {action === "recover" ? (
                 <>
                   <p className="notice">
-                    Sign out first, then attempt Google or Apple login with an
-                    email already owned by the other provider. Authara returns a
+                    Sign out first, then attempt external login with an email
+                    already owned by another method. Authara returns a
                     ten-minute recovery link and the existing methods that may
                     prove account ownership.
                   </p>
                   {!recovery ? (
                     <div className="provider-grid">
-                      {(["google", "apple"] as const).map((provider) => (
-                        <article className="provider-card" key={provider}>
-                          <h3>Attempt {provider} login</h3>
-                          <div className="button-stage">
-                            <RealButton
-                              provider={provider}
-                              action="login"
-                              audience="app"
-                              authenticationChallengeId=""
-                              variant={variant}
-                              size={size}
-                              mode={mode}
-                              disabled={busy}
-                              onSuccess={onSuccess}
-                              onError={onError}
-                              onCancel={() =>
-                                addEvent(
-                                  "info",
-                                  "Apple authorization was cancelled.",
-                                )
-                              }
-                              onUnavailable={(name) =>
-                                addEvent(
-                                  "info",
-                                  `${name} is disabled in Authara.`,
-                                )
-                              }
-                            />
-                          </div>
-                        </article>
-                      ))}
+                      {(["google", "apple", "microsoft"] as const).map(
+                        (provider) => (
+                          <article className="provider-card" key={provider}>
+                            <h3>Attempt {provider} login</h3>
+                            <div className="button-stage">
+                              <RealButton
+                                provider={provider}
+                                action="login"
+                                audience="app"
+                                authenticationChallengeId=""
+                                variant={variant}
+                                size={size}
+                                mode={mode}
+                                disabled={busy}
+                                onSuccess={onSuccess}
+                                onError={onError}
+                                onCancel={() =>
+                                  addEvent(
+                                    "info",
+                                    "Apple authorization was cancelled.",
+                                  )
+                                }
+                                onUnavailable={(name) =>
+                                  addEvent(
+                                    "info",
+                                    `${name} is disabled in Authara.`,
+                                  )
+                                }
+                              />
+                            </div>
+                          </article>
+                        ),
+                      )}
                     </div>
                   ) : (
                     <>
@@ -492,6 +523,30 @@ export function App() {
                             </div>
                           </article>
                         )}
+                        {recovery.proof_methods.includes("microsoft") && (
+                          <article className="provider-card">
+                            <h3>Prove with Microsoft</h3>
+                            <div className="button-stage">
+                              <MicrosoftButton
+                                action="recover"
+                                recoveryLinkId={recovery.link_id}
+                                audience="app"
+                                variant={variant}
+                                size={size}
+                                mode={mode}
+                                disabled={busy}
+                                onSuccess={onSuccess}
+                                onError={onError}
+                                onCancel={() =>
+                                  addEvent(
+                                    "info",
+                                    "Microsoft recovery proof was cancelled.",
+                                  )
+                                }
+                              />
+                            </div>
+                          </article>
+                        )}
                       </div>
                       {recovery.proof_methods.includes("password") && (
                         <p className="notice">
@@ -504,34 +559,45 @@ export function App() {
                 </>
               ) : (
                 <div className="provider-grid">
-                  {(["google", "apple"] as const).map((provider) => (
-                    <article className="provider-card" key={provider}>
-                      <h3>{provider === "google" ? "Google" : "Apple"}</h3>
-                      <div className="button-stage">
-                        <RealButton
-                          provider={provider}
-                          action={action}
-                          audience={audience}
-                          authenticationChallengeId={challengeId}
-                          variant={variant}
-                          size={size}
-                          mode={mode}
-                          disabled={actionDisabled}
-                          onSuccess={onSuccess}
-                          onError={onError}
-                          onCancel={() =>
-                            addEvent(
-                              "info",
-                              "Apple authorization was cancelled.",
-                            )
-                          }
-                          onUnavailable={(name) =>
-                            addEvent("info", `${name} is disabled in Authara.`)
-                          }
-                        />
-                      </div>
-                    </article>
-                  ))}
+                  {(["google", "apple", "microsoft"] as const).map(
+                    (provider) => (
+                      <article className="provider-card" key={provider}>
+                        <h3>
+                          {provider === "google"
+                            ? "Google"
+                            : provider === "apple"
+                              ? "Apple"
+                              : "Microsoft"}
+                        </h3>
+                        <div className="button-stage">
+                          <RealButton
+                            provider={provider}
+                            action={action}
+                            audience={audience}
+                            authenticationChallengeId={challengeId}
+                            variant={variant}
+                            size={size}
+                            mode={mode}
+                            disabled={actionDisabled}
+                            onSuccess={onSuccess}
+                            onError={onError}
+                            onCancel={() =>
+                              addEvent(
+                                "info",
+                                "Apple authorization was cancelled.",
+                              )
+                            }
+                            onUnavailable={(name) =>
+                              addEvent(
+                                "info",
+                                `${name} is disabled in Authara.`,
+                              )
+                            }
+                          />
+                        </div>
+                      </article>
+                    ),
+                  )}
                 </div>
               )}
             </section>

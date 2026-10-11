@@ -6,12 +6,13 @@ import {
 } from "react";
 
 import type { AutharaReactClient } from "./contract.js";
-import { AppleService, GoogleService } from "./services.js";
+import { AppleService, GoogleService, MicrosoftService } from "./services.js";
 
 type AutharaReactContextValue = {
   apple: AppleService;
   client: AutharaReactClient;
   google: GoogleService;
+  microsoft: MicrosoftService;
 };
 
 const AutharaContext = createContext<AutharaReactContextValue | null>(null);
@@ -21,8 +22,7 @@ export type AutharaProviderProps = PropsWithChildren<{
 }>;
 
 /**
- * Owns the page-wide Google and Apple SDK configuration. Use one provider per
- * document so Google Identity Services is initialized only once.
+ * Owns the page-wide external-provider SDK configuration.
  */
 export function AutharaProvider({
   client,
@@ -33,6 +33,7 @@ export function AutharaProvider({
       apple: new AppleService(client),
       client,
       google: new GoogleService(client),
+      microsoft: new MicrosoftService(client),
     }),
     [client],
   );
