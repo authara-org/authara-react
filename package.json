@@ -1,6 +1,6 @@
 {
   "name": "@authara/react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Official React components for Authara browser authentication",
   "license": "MIT",
   "type": "module",
