@@ -592,7 +592,7 @@ describe("Authara React provider buttons", () => {
         <GoogleButton
           action="recover"
           recoveryLinkId="link-1"
-          audience="admin"
+          audience="app"
           onSuccess={onSuccess}
         />
       </AutharaProvider>,
@@ -606,7 +606,7 @@ describe("Authara React provider buttons", () => {
         authara.completeAccountRecoveryLinkWithGoogle,
       ).toHaveBeenCalledWith({
         linkID: "link-1",
-        audience: "admin",
+        audience: "app",
         body: {
           code: "google-code",
           redirect_uri: window.location.origin,

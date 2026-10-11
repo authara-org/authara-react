@@ -5,7 +5,6 @@ import type {
   AutharaAudience,
   AutharaReactClient,
   GoogleProof,
-  ReleasedBrowserGoogleProof,
 } from "./contract.js";
 
 export type ResolvedAutharaAction =
@@ -14,7 +13,7 @@ export type ResolvedAutharaAction =
   | { action: "reauthenticate"; authenticationChallengeId: string }
   | {
       action: "recover";
-      audience: AutharaAudience;
+      audience: "app";
       recoveryLinkId: string;
     };
 
@@ -25,8 +24,6 @@ export async function runGoogleAction(
 ): Promise<AutharaActionSuccess<"google">> {
   await client.getCsrfToken();
   const body = { code: proof.code, redirect_uri: proof.redirect_uri };
-  // The generated client serializes this object without runtime validation.
-  const compatibleBody = body as unknown as ReleasedBrowserGoogleProof;
   switch (selected.action) {
     case "login":
       return {
@@ -34,16 +31,16 @@ export async function runGoogleAction(
         provider: "google",
         session: await client.loginWithGoogle({
           audience: selected.audience,
-          body: compatibleBody,
+          body,
         }),
       };
     case "link":
-      await client.linkCurrentUserGoogle({ body: compatibleBody });
+      await client.linkCurrentUserGoogle({ body });
       return { action: "link", provider: "google" };
     case "reauthenticate":
       await client.reauthenticateWithGoogle({
         body: {
-          ...compatibleBody,
+          ...body,
           authentication_challenge_id: selected.authenticationChallengeId,
         },
       });
@@ -55,7 +52,7 @@ export async function runGoogleAction(
         session: await client.completeAccountRecoveryLinkWithGoogle({
           linkID: selected.recoveryLinkId,
           audience: selected.audience,
-          body: compatibleBody,
+          body,
         }),
       };
   }
@@ -120,7 +117,7 @@ export function resolveAction(
     if (!recoveryLinkId) {
       throw new Error("recoveryLinkId is required for account recovery.");
     }
-    return { action, audience: audience ?? "app", recoveryLinkId };
+    return { action, audience: "app", recoveryLinkId };
   }
   return { action: "login", audience: audience ?? "app" };
 }
