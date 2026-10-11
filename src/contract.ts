@@ -56,9 +56,7 @@ export interface AutharaReactClient {
     audience?: AutharaAudience;
     body: AppleProof;
   }): Promise<AuthSession>;
-  linkCurrentUserGoogle(options: {
-    body: GoogleProof;
-  }): Promise<void>;
+  linkCurrentUserGoogle(options: { body: GoogleProof }): Promise<void>;
   linkCurrentUserApple(options: { body: AppleProof }): Promise<void>;
   reauthenticateWithGoogle(options: {
     body: GoogleProof & { authentication_challenge_id: string };
