@@ -66,12 +66,12 @@ export interface AutharaReactClient {
   }): Promise<void>;
   completeAccountRecoveryLinkWithGoogle(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
-    audience?: AutharaAudience;
+    audience?: "app";
     body: GoogleProof;
   }): Promise<AuthSession>;
   completeAccountRecoveryLinkWithApple(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
-    audience?: AutharaAudience;
+    audience?: "app";
     body: AppleProof;
   }): Promise<AuthSession>;
 }
@@ -135,7 +135,7 @@ export type AutharaActionProps<P extends AutharaProviderName> =
     }
   | {
       action: "recover";
-      audience?: AutharaAudience;
+      audience?: "app";
       authenticationChallengeId?: never;
       recoveryLinkId: AutharaAccountRecoveryLink["link_id"];
       onSuccess?: (result: AutharaRecoverySuccess<P>) => MaybePromise<void>;

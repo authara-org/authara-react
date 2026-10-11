@@ -1,15 +1,15 @@
 {
   "browser": {
     "repository": "authara-org/authara-browser",
-    "version": "unreleased",
-    "tag": "unreleased",
-    "commit": "unreleased"
+    "version": "0.10.0",
+    "tag": "v0.10.0",
+    "commit": "2e03bd170f7e8511efeaa48341b3b35cbdd3ab78"
   },
   "core": {
     "repository": "authara-org/authara",
-    "version": "unreleased",
-    "commit": "unreleased",
+    "version": "v0.23.0",
+    "commit": "1f9dc0bab87420cd172d4c652b05ef5408c1ac83",
     "contract": "contract/openapi.yaml",
-    "contractSha256": "unreleased"
+    "contractSha256": "6e79f0aa4b84ed5e8dc072287c5526a91cd2a5b93d409be9719baf576bf060d8"
   }
 }

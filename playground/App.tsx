@@ -305,7 +305,7 @@ export function App() {
               <span>Audience</span>
               <select
                 value={audience}
-                disabled={action !== "login" && action !== "recover"}
+                disabled={action !== "login"}
                 onChange={(event) =>
                   setAudience(event.target.value as AutharaAudience)
                 }
@@ -418,7 +418,7 @@ export function App() {
                             <RealButton
                               provider={provider}
                               action="login"
-                              audience={audience}
+                              audience="app"
                               authenticationChallengeId=""
                               variant={variant}
                               size={size}
@@ -457,7 +457,7 @@ export function App() {
                               <GoogleButton
                                 action="recover"
                                 recoveryLinkId={recovery.link_id}
-                                audience={audience}
+                                audience="app"
                                 variant={variant}
                                 size={size}
                                 mode={mode}
@@ -475,7 +475,7 @@ export function App() {
                               <AppleButton
                                 action="recover"
                                 recoveryLinkId={recovery.link_id}
-                                audience={audience}
+                                audience="app"
                                 variant={variant}
                                 size={size}
                                 mode={mode}

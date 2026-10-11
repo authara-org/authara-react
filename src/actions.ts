@@ -13,7 +13,7 @@ export type ResolvedAutharaAction =
   | { action: "reauthenticate"; authenticationChallengeId: string }
   | {
       action: "recover";
-      audience: AutharaAudience;
+      audience: "app";
       recoveryLinkId: string;
     };
 
@@ -117,7 +117,7 @@ export function resolveAction(
     if (!recoveryLinkId) {
       throw new Error("recoveryLinkId is required for account recovery.");
     }
-    return { action, audience: audience ?? "app", recoveryLinkId };
+    return { action, audience: "app", recoveryLinkId };
   }
   return { action: "login", audience: audience ?? "app" };
 }
