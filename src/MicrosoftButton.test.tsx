@@ -173,6 +173,49 @@ describe("Microsoft buttons", () => {
     await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
     expect(onError).not.toHaveBeenCalled();
   });
+
+  it("disables every button while the shared Microsoft runtime is in use", async () => {
+    let finishPopup!: (result: { idToken: string }) => void;
+    msal.loginPopup.mockReturnValue(
+      new Promise((resolve) => {
+        finishPopup = resolve;
+      }),
+    );
+    const result = render(
+      <AutharaProvider client={client()}>
+        <MicrosoftCredentialButton
+          data-testid="first"
+          onCredential={() => undefined}
+        />
+        <MicrosoftCredentialButton
+          data-testid="second"
+          onCredential={() => undefined}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() =>
+      expect((result.getByTestId("first") as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
+    expect((result.getByTestId("second") as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    fireEvent.click(result.getByTestId("first"));
+    await waitFor(() =>
+      expect((result.getByTestId("second") as HTMLButtonElement).disabled).toBe(
+        true,
+      ),
+    );
+
+    finishPopup({ idToken: "microsoft-id-token" });
+    await waitFor(() =>
+      expect((result.getByTestId("second") as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
+  });
 });
 
 describe("Microsoft actions", () => {

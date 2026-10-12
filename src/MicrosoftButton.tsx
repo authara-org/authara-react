@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentPropsWithoutRef,
   type CSSProperties,
   type ReactNode,
@@ -111,8 +112,12 @@ export function MicrosoftCredentialButton({
   const errorRef = useRef(onError);
   const unavailableRef = useRef(onUnavailable);
   const [available, setAvailable] = useState(true);
-  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const ready = useSyncExternalStore(
+    microsoft.subscribe,
+    microsoft.isReady,
+    microsoft.isReady,
+  );
   const resolvedMode = useResolvedAutharaColorMode(mode);
 
   credentialRef.current = onCredential;
@@ -124,9 +129,7 @@ export function MicrosoftCredentialButton({
     let active = true;
     void microsoft
       .prepare()
-      .then(() => {
-        if (active) setReady(true);
-      })
+      .then(() => undefined)
       .catch((error) => {
         if (!active) return;
         if (isProviderUnavailable(error)) {
@@ -163,7 +166,6 @@ export function MicrosoftCredentialButton({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented || !ready || inactive) return;
-        setReady(false);
         setBusy(true);
         const authorization = microsoft.authorize();
         void authorization
@@ -181,7 +183,7 @@ export function MicrosoftCredentialButton({
             setBusy(false);
             void microsoft
               .prepare()
-              .then(() => setReady(true))
+              .then(() => undefined)
               .catch((error) => {
                 errorRef.current?.(
                   toError(error, "Microsoft authentication is unavailable."),
