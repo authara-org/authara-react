@@ -174,6 +174,31 @@ describe("Microsoft buttons", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("renders the provider name with a CSS width", async () => {
+    const result = render(
+      <AutharaProvider client={client()}>
+        <MicrosoftCredentialButton
+          data-testid="microsoft-provider"
+          variant="provider"
+          width="calc(100% - 2rem)"
+          onCredential={() => undefined}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        result.getByTestId("microsoft-provider").dataset.autharaReady,
+      ).toBe("true"),
+    );
+    expect(result.getByTestId("microsoft-provider").textContent).toBe(
+      "Microsoft",
+    );
+    expect(result.getByTestId("microsoft-provider").style.width).toBe(
+      "calc(100% - 2rem)",
+    );
+  });
+
   it("disables every button while the shared Microsoft runtime is in use", async () => {
     let finishPopup!: (result: { idToken: string }) => void;
     msal.loginPopup.mockReturnValue(

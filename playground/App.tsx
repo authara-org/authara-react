@@ -14,7 +14,7 @@ import {
   type AutharaProviderName,
 } from "@authara/react";
 
-type ButtonVariant = "icon" | "text";
+type ButtonVariant = "icon" | "provider" | "text";
 type ButtonSize = "small" | "medium" | "large";
 
 type Event = {
@@ -354,6 +354,7 @@ export function App() {
                 }
               >
                 <option value="text">Text</option>
+                <option value="provider">Provider name</option>
                 <option value="icon">Icon only</option>
               </select>
             </label>

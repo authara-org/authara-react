@@ -250,17 +250,24 @@ All three components share the simple properties:
 
 <GoogleButton
   action="login"
-  variant="text"
+  variant="provider"
   size="large"
   mode="system"
+  width="min(100%, 24rem)"
 />
 
 <MicrosoftButton action="login" variant="text" size="large" mode="system" />
 ```
 
-- `variant`: `text` or `icon`
+- `variant`: `text`, `provider`, or `icon`
 - `size`: `small`, `medium`, or `large`
 - `label`: `sign-in`, `sign-up`, or `continue`
+
+The `provider` variant shows only the provider icon and name, such as
+“Google”, without an action prefix. Every button accepts `width` with normal
+CSS values such as `320`, `"20rem"`, `"100%"`, or `"min(100%, 24rem)"`.
+Icon buttons remain square by default, but an explicit `width` overrides that
+default too.
 
 Text-button heights are `30px`, `36px`, and `44px`. Icon-only buttons are
 larger at `36px`, `44px`, and `52px` for the same three size names.
@@ -272,13 +279,12 @@ button and Google's dark preset. Apple is borderless in both modes. Explicit
 Apple `color` or `border`, or Google `theme` or `border`, properties take
 precedence over these defaults.
 
-Google additionally exposes `theme`, `border`, `shape`, `logoAlignment`, and
-`width`.
-Apple exposes `color`, `border`, `borderRadius`, `align`, and `width`.
-Microsoft exposes `border`, `align`, and `width`. All providers accept
+Google additionally exposes `theme`, `border`, `shape`, and `logoAlignment`.
+Apple exposes `color`, `border`, `borderRadius`, and `align`.
+Microsoft exposes `border` and `align`. All providers accept
 `buttonText` to localize or otherwise override the
 visible label and the accessible name of icon-only buttons.
-Text and icon variants both default to a `12px` corner radius. Apple's
+Text, provider, and icon variants all default to a `12px` corner radius. Apple's
 `borderRadius` accepts its supported `0`–`50` range; Google's `shape` can still
 select `pill`, `circle`, `square`, or `rectangular` explicitly.
 All providers use an Authara-rendered, centered logo-and-label structure.

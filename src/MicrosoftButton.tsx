@@ -28,7 +28,7 @@ import {
   useResolvedAutharaColorMode,
 } from "./color-mode.js";
 
-export type MicrosoftButtonVariant = "icon" | "text";
+export type MicrosoftButtonVariant = "icon" | "provider" | "text";
 export type MicrosoftButtonLabel = "continue" | "sign-in" | "sign-up";
 
 const textButtonHeights = { small: 30, medium: 36, large: 44 } as const;
@@ -150,7 +150,8 @@ export function MicrosoftCredentialButton({
 
   const iconOnly = variant === "icon";
   const height = iconOnly ? iconButtonSizes[size] : textButtonHeights[size];
-  const text = buttonText ?? buttonLabel(label);
+  const text =
+    buttonText ?? (variant === "provider" ? "Microsoft" : buttonLabel(label));
   const inactive = disabled || busy;
   const dark = resolvedMode === "dark";
 

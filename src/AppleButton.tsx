@@ -67,6 +67,7 @@ export interface AppleCredentialButtonProps extends Omit<
   color?: "black" | "white";
   border?: boolean;
   buttonText?: string;
+  width?: CSSProperties["width"];
   type?: AppleButtonType;
   mode?: "center-align" | "left-align" | "logo-only";
   /** Apple supports a border radius from 0 through 50 points. */
@@ -84,6 +85,7 @@ export function AppleCredentialButton({
   color = "black",
   border = false,
   buttonText,
+  width,
   type = "continue",
   mode = "center-align",
   borderRadius = 12,
@@ -174,7 +176,7 @@ export function AppleCredentialButton({
       style={{
         position: "relative",
         display: "inline-block",
-        width: "100%",
+        width: width ?? "100%",
         height: 44,
         overflow: "hidden",
         borderRadius,
@@ -262,7 +264,7 @@ export function AppleCredentialButton({
   );
 }
 
-export type AppleButtonVariant = "icon" | "text";
+export type AppleButtonVariant = "icon" | "provider" | "text";
 export type AppleButtonLabel = "continue" | "sign-in" | "sign-up";
 
 type AppleButtonVisualProps = Omit<
@@ -274,7 +276,6 @@ type AppleButtonVisualProps = Omit<
   label?: AppleButtonLabel;
   align?: "center" | "left";
   mode?: AutharaColorMode;
-  width?: CSSProperties["width"];
   onCancel?: () => void;
 };
 
@@ -323,6 +324,7 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
     width,
     color,
     borderRadius,
+    buttonText,
     style,
     ...buttonProps
   } = internal;
@@ -337,8 +339,9 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
       type={appleType(label)}
       mode={variant === "icon" ? "logo-only" : `${align}-align`}
       borderRadius={borderRadius}
+      buttonText={buttonText ?? (variant === "provider" ? "Apple" : undefined)}
+      width={width ?? (variant === "icon" ? height : "100%")}
       style={{
-        width: width ?? (variant === "icon" ? height : "100%"),
         height,
         ...style,
       }}
