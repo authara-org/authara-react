@@ -29,7 +29,7 @@ import {
 
 type GoogleAppearance = Pick<
   GoogleButtonConfiguration,
-  "type" | "theme" | "size" | "text" | "shape" | "logo_alignment" | "width"
+  "type" | "theme" | "size" | "text" | "shape" | "logo_alignment"
 >;
 
 const googleButtonHeights = {
@@ -133,6 +133,7 @@ export interface GoogleCredentialButtonProps
   disabled?: boolean;
   border?: boolean;
   buttonText?: string;
+  width?: CSSProperties["width"];
   locale?: string;
   fallback?: ReactNode;
   onCredential: (credential: GoogleCredential) => MaybePromise<void>;
@@ -304,7 +305,7 @@ export function GoogleCredentialButton({
   );
 }
 
-export type GoogleButtonVariant = "icon" | "text";
+export type GoogleButtonVariant = "icon" | "provider" | "text";
 export type GoogleButtonLabel = "continue" | "sign-in" | "sign-up";
 
 type GoogleButtonVisualProps = Omit<
@@ -361,6 +362,7 @@ export function GoogleButton(
     border,
     shape,
     theme,
+    buttonText,
     ...buttonProps
   } = internal;
   const resolvedMode = useResolvedAutharaColorMode(mode);
@@ -373,6 +375,7 @@ export function GoogleButton(
       type={variant === "icon" ? "icon" : "standard"}
       size={size}
       text={googleText(label)}
+      buttonText={buttonText ?? (variant === "provider" ? "Google" : undefined)}
       shape={shape ?? "rectangular"}
       logo_alignment={logoAlignment}
       onCredential={async (proof) => {

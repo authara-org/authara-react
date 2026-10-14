@@ -14,7 +14,7 @@ services:
       - playground-postgres:/var/lib/postgresql/data
 
   migrations:
-    image: ghcr.io/authara-org/authara-migrations:${AUTHARA_MIGRATIONS_VERSION:-v0.2.0}
+    image: ghcr.io/authara-org/authara-migrations:${AUTHARA_MIGRATIONS_VERSION:-v0.3.0}
     environment:
       POSTGRESQL_HOST: postgres
       POSTGRESQL_PORT: 5432
@@ -38,7 +38,7 @@ services:
       - playground-redis:/data
 
   authara:
-    image: ghcr.io/authara-org/authara-core:${AUTHARA_CORE_VERSION:-v0.22.0}
+    image: ghcr.io/authara-org/authara-core:${AUTHARA_CORE_VERSION:-v0.25.0}
     environment:
       APP_ENV: dev
       POSTGRESQL_HOST: postgres
@@ -50,7 +50,9 @@ services:
       PUBLIC_URL: ${AUTHARA_PUBLIC_URL:-https://playground.authara.org}
       AUTHARA_JWT_ISSUER: authara-playground
       AUTHARA_JWT_ACTIVE_KEY_ID: playground
-      AUTHARA_JWT_KEYS: playground:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      AUTHARA_JWT_PRIVATE_KEYS: playground:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      AUTHARA_CHALLENGE_VERIFICATION_CODE_ACTIVE_KEY_ID: playground-challenge
+      AUTHARA_CHALLENGE_VERIFICATION_CODE_KEYS: playground-challenge:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXpBQkNERUY=
       AUTHARA_CACHE_PROVIDER: redis
       AUTHARA_ACCESS_TOKEN_REVOCATION_MODE: immediate
       AUTHARA_ORG_MODE: ${AUTHARA_ORG_MODE:-multi}

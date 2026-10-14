@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentPropsWithoutRef,
   type CSSProperties,
   type ReactNode,
@@ -27,7 +28,7 @@ import {
   useResolvedAutharaColorMode,
 } from "./color-mode.js";
 
-export type MicrosoftButtonVariant = "icon" | "text";
+export type MicrosoftButtonVariant = "icon" | "provider" | "text";
 export type MicrosoftButtonLabel = "continue" | "sign-in" | "sign-up";
 
 const textButtonHeights = { small: 30, medium: 36, large: 44 } as const;
@@ -111,8 +112,12 @@ export function MicrosoftCredentialButton({
   const errorRef = useRef(onError);
   const unavailableRef = useRef(onUnavailable);
   const [available, setAvailable] = useState(true);
-  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const ready = useSyncExternalStore(
+    microsoft.subscribe,
+    microsoft.isReady,
+    microsoft.isReady,
+  );
   const resolvedMode = useResolvedAutharaColorMode(mode);
 
   credentialRef.current = onCredential;
@@ -124,9 +129,7 @@ export function MicrosoftCredentialButton({
     let active = true;
     void microsoft
       .prepare()
-      .then(() => {
-        if (active) setReady(true);
-      })
+      .then(() => undefined)
       .catch((error) => {
         if (!active) return;
         if (isProviderUnavailable(error)) {
@@ -147,7 +150,8 @@ export function MicrosoftCredentialButton({
 
   const iconOnly = variant === "icon";
   const height = iconOnly ? iconButtonSizes[size] : textButtonHeights[size];
-  const text = buttonText ?? buttonLabel(label);
+  const text =
+    buttonText ?? (variant === "provider" ? "Microsoft" : buttonLabel(label));
   const inactive = disabled || busy;
   const dark = resolvedMode === "dark";
 
@@ -163,7 +167,6 @@ export function MicrosoftCredentialButton({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented || !ready || inactive) return;
-        setReady(false);
         setBusy(true);
         const authorization = microsoft.authorize();
         void authorization
@@ -181,7 +184,7 @@ export function MicrosoftCredentialButton({
             setBusy(false);
             void microsoft
               .prepare()
-              .then(() => setReady(true))
+              .then(() => undefined)
               .catch((error) => {
                 errorRef.current?.(
                   toError(error, "Microsoft authentication is unavailable."),

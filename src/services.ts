@@ -174,8 +174,17 @@ export class MicrosoftService {
   private optionsPromise?: Promise<MicrosoftLoginOptions>;
   private runtime?: MicrosoftRuntime;
   private runtimePromise?: Promise<MicrosoftRuntime>;
+  private ready = false;
+  private readonly listeners = new Set<() => void>();
 
   constructor(private readonly client: AutharaReactClient) {}
+
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  readonly isReady = (): boolean => this.ready;
 
   async prepare(): Promise<void> {
     if (this.runtime) return;
@@ -195,6 +204,7 @@ export class MicrosoftService {
         });
         await application.initialize();
         this.runtime = { application, options, redirectUri };
+        this.setReady(true);
         return this.runtime;
       })
       .catch((error) => {
@@ -214,6 +224,7 @@ export class MicrosoftService {
     this.runtime = undefined;
     this.runtimePromise = undefined;
     this.optionsPromise = undefined;
+    this.setReady(false);
     const resultPromise = runtime.application.loginPopup({
       scopes: ["openid", "profile", "email"],
       nonce: runtime.options.nonce,
@@ -247,5 +258,11 @@ export class MicrosoftService {
         throw error;
       });
     return this.optionsPromise;
+  }
+
+  private setReady(ready: boolean): void {
+    if (this.ready === ready) return;
+    this.ready = ready;
+    for (const listener of this.listeners) listener();
   }
 }

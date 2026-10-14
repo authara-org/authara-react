@@ -199,6 +199,50 @@ describe("Authara React provider buttons", () => {
     expect(google.requestCode).toHaveBeenCalledTimes(1);
   });
 
+  it("renders provider-name buttons with CSS widths", async () => {
+    mockGoogle();
+    const renderAppleButton = vi.fn();
+    window.AppleID = {
+      auth: {
+        init: vi.fn(),
+        renderButton: renderAppleButton,
+        signIn: vi.fn(),
+      },
+    };
+
+    const result = render(
+      <AutharaProvider client={client()}>
+        <GoogleButton
+          data-testid="google-provider"
+          variant="provider"
+          width="24rem"
+        />
+        <AppleButton
+          data-testid="apple-provider"
+          variant="provider"
+          width="18rem"
+        />
+        <GoogleButton
+          data-testid="google-icon-width"
+          variant="icon"
+          width="4rem"
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(renderAppleButton).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(result.getByTestId("google-provider").dataset.autharaReady).toBe(
+        "true",
+      ),
+    );
+    expect(result.getByTestId("google-provider").textContent).toBe("Google");
+    expect(result.getByTestId("google-provider").style.width).toBe("24rem");
+    expect(result.getByTestId("apple-provider").textContent).toBe("Apple");
+    expect(result.getByTestId("apple-provider").style.width).toBe("18rem");
+    expect(result.getByTestId("google-icon-width").style.width).toBe("4rem");
+  });
+
   it("renders Apple and uses fresh server options for authorization", async () => {
     const initialize = vi.fn();
     const renderButton = vi.fn();
