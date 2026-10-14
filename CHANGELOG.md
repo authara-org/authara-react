@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/authara-org/authara-react/compare/v0.2.0...v0.3.0) (2026-10-14)
+
+
+### Features
+
+* add provider-only button variant ([#8](https://github.com/authara-org/authara-react/issues/8)) ([49a1663](https://github.com/authara-org/authara-react/commit/49a166350578bf8ca6118e26ba0d02be081d0e75))
+
 ## [0.2.0](https://github.com/authara-org/authara-react/compare/v0.1.0...v0.2.0) (2026-10-11)
 
 
