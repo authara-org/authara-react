@@ -363,6 +363,7 @@ local override. It keeps the operator-style stack but builds the neighboring
 `authara-core` checkout instead of pulling the released Core image:
 
 ```bash
+cp docker-compose.playground.local.example.yaml docker-compose.playground.local.yaml
 docker compose \
   -f docker-compose.playground.yaml \
   -f docker-compose.playground.local.yaml \
