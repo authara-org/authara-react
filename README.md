@@ -266,6 +266,12 @@ Google, Apple, and Microsoft popup cancellations call `onCancel`, not
 `onError`. Popup-open and other provider failures remain errors. A provider
 disabled in Authara renders `fallback` and calls `onUnavailable`.
 
+Use `onStart` when surrounding application state must observe an accepted
+provider attempt. It runs once after the button is ready and enabled and
+immediately before provider authorization starts. It is consistent across all
+three providers; do not use provider-specific DOM click propagation as an
+authorization lifecycle signal.
+
 The package rejects Apple callback URLs outside the exact same-origin
 `/auth/oauth/apple/callback` route and Microsoft authorities outside
 `https://login.microsoftonline.com` before provider authorization begins.

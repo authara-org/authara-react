@@ -83,12 +83,14 @@ describe("Microsoft buttons", () => {
   it("runs Microsoft popup login with the server nonce", async () => {
     const authara = client();
     const onSuccess = vi.fn();
+    const onStart = vi.fn();
     const result = render(
       <AutharaProvider client={authara}>
         <MicrosoftButton
           data-testid="microsoft"
           action="login"
           audience="operator"
+          onStart={onStart}
           onSuccess={onSuccess}
         />
       </AutharaProvider>,
@@ -101,6 +103,7 @@ describe("Microsoft buttons", () => {
       "Sign in with Microsoft",
     );
     fireEvent.click(result.getByTestId("microsoft"));
+    expect(onStart).toHaveBeenCalledTimes(1);
     expect(msal.loginPopup).toHaveBeenCalledTimes(1);
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));

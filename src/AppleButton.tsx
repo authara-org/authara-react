@@ -74,6 +74,7 @@ export interface AppleCredentialButtonProps extends Omit<
   borderRadius?: number;
   fallback?: ReactNode;
   onAuthorization: (authorization: AppleAuthorization) => MaybePromise<void>;
+  onStart?: () => void;
   onCancel?: () => void;
   onError?: (error: Error) => void;
   onUnavailable?: () => void;
@@ -91,6 +92,7 @@ export function AppleCredentialButton({
   borderRadius = 12,
   fallback = null,
   onAuthorization,
+  onStart,
   onCancel,
   onError,
   onUnavailable,
@@ -148,6 +150,7 @@ export function AppleCredentialButton({
     event.stopPropagation();
     if (!ready || disabled || busy) return;
 
+    onStart?.();
     setBusy(true);
     void apple
       .authorize(locale)
