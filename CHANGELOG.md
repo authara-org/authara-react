@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/authara-org/authara-react/compare/v0.3.1...v0.4.0) (2026-10-19)
+
+
+### Features
+
+* support invitation-aware provider actions ([#15](https://github.com/authara-org/authara-react/issues/15)) ([aecfcef](https://github.com/authara-org/authara-react/commit/aecfcef868e1faed6e0d0de3eb36368a8364110a)), closes [#14](https://github.com/authara-org/authara-react/issues/14)
+
 ## [0.3.1](https://github.com/authara-org/authara-react/compare/v0.3.0...v0.3.1) (2026-10-19)
 
 
