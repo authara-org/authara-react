@@ -137,6 +137,7 @@ export interface GoogleCredentialButtonProps
   locale?: string;
   fallback?: ReactNode;
   onCredential: (credential: GoogleCredential) => MaybePromise<void>;
+  onStart?: () => void;
   onCancel?: () => void;
   onError?: (error: Error) => void;
   onUnavailable?: () => void;
@@ -149,6 +150,7 @@ export function GoogleCredentialButton({
   locale,
   fallback = null,
   onCredential,
+  onStart,
   onCancel,
   onError,
   onUnavailable,
@@ -258,6 +260,7 @@ export function GoogleCredentialButton({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented || !requestCode) return;
+        onStart?.();
         setBusy(true);
         requestCode();
       }}

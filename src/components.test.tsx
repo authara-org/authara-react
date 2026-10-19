@@ -201,6 +201,7 @@ describe("Authara React provider buttons", () => {
 
   it("renders a directly clickable, focusable Google button", async () => {
     const google = mockGoogle();
+    const onStart = vi.fn();
 
     const result = render(
       <AutharaProvider client={client()}>
@@ -210,6 +211,7 @@ describe("Authara React provider buttons", () => {
           size="medium"
           shape="pill"
           onCredential={() => undefined}
+          onStart={onStart}
         />
       </AutharaProvider>,
     );
@@ -238,6 +240,7 @@ describe("Authara React provider buttons", () => {
     presentation.focus();
     expect(document.activeElement).toBe(presentation);
     fireEvent.click(presentation);
+    expect(onStart).toHaveBeenCalledTimes(1);
     expect(google.requestCode).toHaveBeenCalledTimes(1);
   });
 
@@ -309,12 +312,14 @@ describe("Authara React provider buttons", () => {
         nonce: "fresh-nonce",
       });
     const onAuthorization = vi.fn();
+    const onStart = vi.fn();
     const result = render(
       <AutharaProvider client={client({ getAppleLoginOptions })}>
         <AppleCredentialButton
           data-testid="apple"
           borderRadius={20}
           onAuthorization={onAuthorization}
+          onStart={onStart}
         />
       </AutharaProvider>,
     );
@@ -337,6 +342,7 @@ describe("Authara React provider buttons", () => {
     ).toBe("20");
     fireEvent.click(result.getByTestId("apple").firstElementChild!);
 
+    expect(onStart).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(onAuthorization).toHaveBeenCalledTimes(1));
     expect(getAppleLoginOptions).toHaveBeenCalledTimes(2);
     expect(signIn).toHaveBeenCalledWith({
@@ -433,12 +439,14 @@ describe("Authara React provider buttons", () => {
   it("does not run a disabled button action", async () => {
     const google = mockGoogle();
     const onCredential = vi.fn();
+    const onStart = vi.fn();
     const result = render(
       <AutharaProvider client={client()}>
         <GoogleCredentialButton
           data-testid="disabled-google"
           disabled
           onCredential={onCredential}
+          onStart={onStart}
         />
       </AutharaProvider>,
     );
@@ -448,6 +456,7 @@ describe("Authara React provider buttons", () => {
     await Promise.resolve();
     expect(google.requestCode).not.toHaveBeenCalled();
     expect(onCredential).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
   });
 
   it("forwards the logo-only variants to both provider SDKs", async () => {

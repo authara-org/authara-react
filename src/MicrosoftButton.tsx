@@ -82,6 +82,7 @@ export interface MicrosoftCredentialButtonProps extends Omit<
   width?: CSSProperties["width"];
   fallback?: ReactNode;
   onCredential: (credential: MicrosoftCredential) => MaybePromise<void>;
+  onStart?: () => void;
   onCancel?: () => void;
   onError?: (error: Error) => void;
   onUnavailable?: () => void;
@@ -99,6 +100,7 @@ export function MicrosoftCredentialButton({
   width,
   fallback = null,
   onCredential,
+  onStart,
   onCancel,
   onError,
   onUnavailable,
@@ -167,6 +169,7 @@ export function MicrosoftCredentialButton({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented || !ready || inactive) return;
+        onStart?.();
         setBusy(true);
         const authorization = microsoft.authorize();
         void authorization
