@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/authara-org/authara-react/compare/v0.3.0...v0.3.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** support @authara/browser 0.12.0 ([#12](https://github.com/authara-org/authara-react/issues/12)) ([c34fb0e](https://github.com/authara-org/authara-react/commit/c34fb0e233f90797e95f35f08dfcebe0e60b51d6)), closes [#11](https://github.com/authara-org/authara-react/issues/11)
+
 ## [0.3.0](https://github.com/authara-org/authara-react/compare/v0.2.0...v0.3.0) (2026-10-14)
 
 
