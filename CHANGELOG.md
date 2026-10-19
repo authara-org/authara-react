@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/authara-org/authara-react/compare/v0.4.0...v0.5.0) (2026-10-19)
+
+
+### Features
+
+* expose provider action start callback ([#18](https://github.com/authara-org/authara-react/issues/18)) ([687d184](https://github.com/authara-org/authara-react/commit/687d184255fa284f566b66825d481cb41d3b65c3))
+
 ## [0.4.0](https://github.com/authara-org/authara-react/compare/v0.3.1...v0.4.0) (2026-10-19)
 
 
