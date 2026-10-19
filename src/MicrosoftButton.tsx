@@ -11,7 +11,7 @@ import {
 import { resolveAction, runMicrosoftAction } from "./actions.js";
 import {
   type AutharaActionProps,
-  type AutharaActionSuccess,
+  type AutharaActionResult,
   type MaybePromise,
 } from "./contract.js";
 import { useAutharaServices } from "./context.js";
@@ -252,8 +252,10 @@ export function MicrosoftButton(
     audience?: "app" | "admin" | "operator";
     authenticationChallengeId?: string;
     recoveryLinkId?: string;
+    invitationToken?: string;
+    invitationFlow?: "login" | "signup";
     onSuccess?: (
-      result: AutharaActionSuccess<"microsoft">,
+      result: AutharaActionResult<"microsoft">,
     ) => MaybePromise<void>;
     onError?: (error: AutharaButtonError) => void;
   };
@@ -262,6 +264,8 @@ export function MicrosoftButton(
     audience,
     authenticationChallengeId,
     recoveryLinkId,
+    invitationToken,
+    invitationFlow,
     onSuccess,
     onError,
     label = action === "login" ? "sign-in" : "continue",
@@ -280,6 +284,8 @@ export function MicrosoftButton(
             audience,
             authenticationChallengeId,
             recoveryLinkId,
+            invitationToken,
+            invitationFlow,
           );
         } catch (error) {
           throw toAutharaButtonError(
@@ -289,7 +295,7 @@ export function MicrosoftButton(
           );
         }
 
-        let result: AutharaActionSuccess<"microsoft">;
+        let result: AutharaActionResult<"microsoft">;
         try {
           result = await runMicrosoftAction(client, selected, proof);
         } catch (error) {

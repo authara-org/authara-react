@@ -9,7 +9,7 @@ import {
 
 import type {
   AutharaActionProps,
-  AutharaActionSuccess,
+  AutharaActionResult,
   MaybePromise,
 } from "./contract.js";
 import { resolveAction, runGoogleAction } from "./actions.js";
@@ -137,6 +137,7 @@ export interface GoogleCredentialButtonProps
   locale?: string;
   fallback?: ReactNode;
   onCredential: (credential: GoogleCredential) => MaybePromise<void>;
+  onCancel?: () => void;
   onError?: (error: Error) => void;
   onUnavailable?: () => void;
 }
@@ -148,6 +149,7 @@ export function GoogleCredentialButton({
   locale,
   fallback = null,
   onCredential,
+  onCancel,
   onError,
   onUnavailable,
   type = "standard",
@@ -163,6 +165,7 @@ export function GoogleCredentialButton({
 }: GoogleCredentialButtonProps): React.JSX.Element | null {
   const { google } = useAutharaServices();
   const credentialRef = useRef(onCredential);
+  const cancelRef = useRef(onCancel);
   const errorRef = useRef(onError);
   const unavailableRef = useRef(onUnavailable);
   const disabledRef = useRef(disabled);
@@ -172,6 +175,7 @@ export function GoogleCredentialButton({
   const [requestCode, setRequestCode] = useState<(() => void) | undefined>();
 
   credentialRef.current = onCredential;
+  cancelRef.current = onCancel;
   errorRef.current = onError;
   unavailableRef.current = onUnavailable;
   disabledRef.current = disabled;
@@ -195,6 +199,11 @@ export function GoogleCredentialButton({
             .finally(() => {
               if (active) setBusy(false);
             });
+        },
+        () => {
+          if (!active) return;
+          setBusy(false);
+          cancelRef.current?.();
         },
         (error) => {
           if (!active) return;
@@ -344,7 +353,9 @@ export function GoogleButton(
     audience?: "app" | "admin" | "operator";
     authenticationChallengeId?: string;
     recoveryLinkId?: string;
-    onSuccess?: (result: AutharaActionSuccess<"google">) => MaybePromise<void>;
+    invitationToken?: string;
+    invitationFlow?: "login" | "signup";
+    onSuccess?: (result: AutharaActionResult<"google">) => MaybePromise<void>;
     onError?: (error: AutharaButtonError) => void;
   };
   const {
@@ -352,6 +363,8 @@ export function GoogleButton(
     audience,
     authenticationChallengeId,
     recoveryLinkId,
+    invitationToken,
+    invitationFlow,
     onSuccess,
     onError,
     variant = "text",
@@ -379,7 +392,7 @@ export function GoogleButton(
       shape={shape ?? "rectangular"}
       logo_alignment={logoAlignment}
       onCredential={async (proof) => {
-        let result: AutharaActionSuccess<"google">;
+        let result: AutharaActionResult<"google">;
         let selected;
         try {
           selected = resolveAction(
@@ -387,6 +400,8 @@ export function GoogleButton(
             audience,
             authenticationChallengeId,
             recoveryLinkId,
+            invitationToken,
+            invitationFlow,
           );
         } catch (error) {
           throw toAutharaButtonError(

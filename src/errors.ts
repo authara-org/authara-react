@@ -216,9 +216,5 @@ export function isMicrosoftCancellation(error: unknown): boolean {
   if (typeof error !== "object" || error === null || !("errorCode" in error)) {
     return false;
   }
-  return (
-    error.errorCode === "user_cancelled" ||
-    error.errorCode === "popup_window_error" ||
-    error.errorCode === "empty_window_error"
-  );
+  return error.errorCode === "user_cancelled";
 }

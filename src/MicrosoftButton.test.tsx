@@ -47,6 +47,7 @@ function client(
     getAppleLoginOptions: vi.fn(),
     loginWithGoogle: vi.fn(),
     loginWithApple: vi.fn(),
+    authenticateAndAcceptInvitationWithGoogle: vi.fn(),
     linkCurrentUserGoogle: vi.fn(),
     linkCurrentUserApple: vi.fn(),
     reauthenticateWithGoogle: vi.fn(),
@@ -174,6 +175,52 @@ describe("Microsoft buttons", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("reports popup-open failures as errors", async () => {
+    msal.loginPopup.mockRejectedValue({ errorCode: "popup_window_error" });
+    const onCancel = vi.fn();
+    const onError = vi.fn();
+    const result = render(
+      <AutharaProvider client={client()}>
+        <MicrosoftCredentialButton
+          data-testid="microsoft"
+          onCredential={() => undefined}
+          onCancel={onCancel}
+          onError={onError}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() =>
+      expect(result.getByTestId("microsoft").dataset.autharaReady).toBe("true"),
+    );
+    fireEvent.click(result.getByTestId("microsoft"));
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("rejects Microsoft authorities outside the trusted host", async () => {
+    const onError = vi.fn();
+    render(
+      <AutharaProvider
+        client={client({
+          getMicrosoftLoginOptions: vi.fn().mockResolvedValue({
+            client_id: "microsoft-client",
+            authority: "https://attacker.example/common",
+            nonce: "microsoft-nonce",
+          }),
+        })}
+      >
+        <MicrosoftCredentialButton
+          onCredential={() => undefined}
+          onError={onError}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(msal.configurations).toHaveLength(0);
+  });
+
   it("renders the provider name with a CSS width", async () => {
     const result = render(
       <AutharaProvider client={client()}>
@@ -276,7 +323,12 @@ describe("Microsoft actions", () => {
     await expect(
       runMicrosoftAction(
         authara,
-        { action: "recover", audience: "app", recoveryLinkId: "link-1" },
+        {
+          action: "recover",
+          audience: "app",
+          recoveryLinkId: "link-1",
+          invitationToken: "invitation-token",
+        },
         proof,
       ),
     ).resolves.toEqual({
@@ -289,8 +341,33 @@ describe("Microsoft actions", () => {
     ).toHaveBeenCalledWith({
       linkID: "link-1",
       audience: "app",
-      body: proof,
+      body: { ...proof, invitation_token: "invitation-token" },
     });
     expect(authara.getCsrfToken).toHaveBeenCalledTimes(3);
+  });
+
+  it("forwards invitation context through Microsoft login", async () => {
+    const authara = client();
+
+    await expect(
+      runMicrosoftAction(
+        authara,
+        {
+          action: "login",
+          audience: "app",
+          invitationToken: "invitation-token",
+        },
+        proof,
+      ),
+    ).resolves.toEqual({
+      action: "login",
+      provider: "microsoft",
+      status: "authenticated",
+      session,
+    });
+    expect(authara.loginWithMicrosoft).toHaveBeenCalledWith({
+      audience: "app",
+      body: { ...proof, invitation_token: "invitation-token" },
+    });
   });
 });

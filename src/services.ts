@@ -49,6 +49,7 @@ export class GoogleService {
   async prepare(
     locale: string | undefined,
     handler: GoogleHandler,
+    cancelHandler: () => void,
     errorHandler: (error: Error) => void,
   ): Promise<() => void> {
     const options = await this.options();
@@ -72,11 +73,15 @@ export class GoogleService {
         handler({ code: response.code, redirect_uri: window.location.origin });
       },
       error_callback: (error) => {
+        if (error.type === "popup_closed") {
+          cancelHandler();
+          return;
+        }
         errorHandler(
           new Error(
-            error.type === "popup_closed"
-              ? "Google sign-in was cancelled."
-              : "Google sign-in could not be opened.",
+            error.type === "popup_failed_to_open"
+              ? "Google sign-in popup could not be opened."
+              : "Google sign-in failed.",
           ),
         );
       },
@@ -101,6 +106,7 @@ export class GoogleService {
 }
 
 function appleConfig(options: AppleLoginOptions): AppleConfig {
+  assertSameOriginCallback(options.redirect_uri, "/auth/oauth/apple/callback");
   return {
     clientId: options.client_id,
     scope: "email",
@@ -193,6 +199,7 @@ export class MicrosoftService {
       import("@azure/msal-browser"),
     ])
       .then(async ([options, { PublicClientApplication }]) => {
+        assertMicrosoftAuthority(options.authority);
         const redirectUri = `${window.location.origin}/auth/oauth/microsoft/redirect`;
         const application = new PublicClientApplication({
           auth: {
@@ -264,5 +271,42 @@ export class MicrosoftService {
     if (this.ready === ready) return;
     this.ready = ready;
     for (const listener of this.listeners) listener();
+  }
+}
+
+function assertSameOriginCallback(value: string, expectedPath: string): void {
+  let callback: URL;
+  try {
+    callback = new URL(value);
+  } catch {
+    throw new Error("Authara returned an invalid provider callback URL.");
+  }
+  if (
+    callback.origin !== window.location.origin ||
+    callback.pathname !== expectedPath ||
+    callback.username !== "" ||
+    callback.password !== "" ||
+    callback.search !== "" ||
+    callback.hash !== ""
+  ) {
+    throw new Error("Authara returned an invalid provider callback URL.");
+  }
+}
+
+function assertMicrosoftAuthority(value: string): void {
+  let authority: URL;
+  try {
+    authority = new URL(value);
+  } catch {
+    throw new Error("Authara returned an invalid Microsoft authority.");
+  }
+  if (
+    authority.origin !== "https://login.microsoftonline.com" ||
+    authority.username !== "" ||
+    authority.password !== "" ||
+    authority.search !== "" ||
+    authority.hash !== ""
+  ) {
+    throw new Error("Authara returned an invalid Microsoft authority.");
   }
 }

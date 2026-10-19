@@ -78,6 +78,34 @@ export function Login() {
 `action="login"` supports the `app`, `admin`, and `operator` audiences. The
 default action is `login` and the default audience is `app`.
 
+## Invitation-aware login
+
+Pass an Authara invitation token to accept the invitation as part of provider
+login. Invitation login is intentionally restricted to the `app` audience:
+
+```tsx
+<GoogleButton
+  invitationToken={invitationToken}
+  invitationFlow="signup"
+  onSuccess={(result) => {
+    if (result.status === "recovery-required") {
+      setRecovery(result.recovery);
+      return;
+    }
+    reloadSession();
+  }}
+/>
+
+<AppleButton invitationToken={invitationToken} onSuccess={reloadSession} />
+<MicrosoftButton invitationToken={invitationToken} onSuccess={reloadSession} />
+```
+
+Google's invitation endpoint can return a typed `recovery-required` result
+when the provider email collides with an existing account. Apple and Microsoft
+surface the equivalent collision through the normal structured error contract.
+Pass the same `invitationToken` to an `action="recover"` button so Authara can
+complete the pending invitation after ownership proof.
+
 ## Link a provider
 
 ```tsx
@@ -234,8 +262,13 @@ unions are generated from Core's `x-authara-error-codes` declarations:
 - every action includes its declared authorization, request, availability, and
   internal codes, plus the local CSRF and unknown-code fallbacks
 
-Apple and Microsoft popup cancellation calls `onCancel`, not `onError`. A provider disabled
-in Authara renders `fallback` and calls `onUnavailable`.
+Google, Apple, and Microsoft popup cancellations call `onCancel`, not
+`onError`. Popup-open and other provider failures remain errors. A provider
+disabled in Authara renders `fallback` and calls `onUnavailable`.
+
+The package rejects Apple callback URLs outside the exact same-origin
+`/auth/oauth/apple/callback` route and Microsoft authorities outside
+`https://login.microsoftonline.com` before provider authorization begins.
 
 ## Appearance
 

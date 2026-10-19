@@ -13,6 +13,7 @@ import type {
 export type AutharaAudience = "app" | "admin" | "operator";
 export type AutharaAction = "login" | "link" | "reauthenticate" | "recover";
 export type AutharaProviderName = "apple" | "google" | "microsoft";
+export type AutharaInvitationFlow = "login" | "signup";
 export type AutharaAccountRecoveryLink = Omit<
   BrowserAccountRecoveryLink,
   "provider" | "proof_methods"
@@ -63,13 +64,24 @@ export interface AutharaReactClient {
   getCsrfToken(): Promise<unknown>;
   getGoogleLoginOptions(): Promise<GoogleLoginOptions>;
   getAppleLoginOptions(): Promise<AppleLoginOptions>;
+  authenticateAndAcceptInvitationWithGoogle(options: {
+    audience?: "app";
+    body: GoogleProof & {
+      token: string;
+      flow: AutharaInvitationFlow;
+    };
+  }): Promise<{
+    status: "authenticated" | "proof_required";
+    session?: AuthSession;
+    recovery?: AutharaAccountRecoveryLink;
+  }>;
   loginWithGoogle(options: {
     audience?: AutharaAudience;
     body: GoogleProof;
   }): Promise<AuthSession>;
   loginWithApple(options: {
     audience?: AutharaAudience;
-    body: AppleProof;
+    body: AppleProof & { invitation_token?: string };
   }): Promise<AuthSession>;
   linkCurrentUserGoogle(options: { body: GoogleProof }): Promise<void>;
   linkCurrentUserApple(options: { body: AppleProof }): Promise<void>;
@@ -82,12 +94,12 @@ export interface AutharaReactClient {
   completeAccountRecoveryLinkWithGoogle(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
     audience?: "app";
-    body: GoogleProof;
+    body: GoogleProof & { invitation_token?: string };
   }): Promise<AuthSession>;
   completeAccountRecoveryLinkWithApple(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
     audience?: "app";
-    body: AppleProof;
+    body: AppleProof & { invitation_token?: string };
   }): Promise<AuthSession>;
 
   // Optional until @authara/browser is regenerated from the Core contract that
@@ -95,7 +107,7 @@ export interface AutharaReactClient {
   getMicrosoftLoginOptions?(): Promise<MicrosoftLoginOptions>;
   loginWithMicrosoft?(options: {
     audience?: AutharaAudience;
-    body: MicrosoftProof;
+    body: MicrosoftProof & { invitation_token?: string };
   }): Promise<AuthSession>;
   linkCurrentUserMicrosoft?(options: { body: MicrosoftProof }): Promise<void>;
   reauthenticateWithMicrosoft?(options: {
@@ -104,7 +116,7 @@ export interface AutharaReactClient {
   completeAccountRecoveryLinkWithMicrosoft?(options: {
     linkID: AutharaAccountRecoveryLink["link_id"];
     audience?: "app";
-    body: MicrosoftProof;
+    body: MicrosoftProof & { invitation_token?: string };
   }): Promise<AuthSession>;
 }
 
@@ -113,6 +125,20 @@ export type AutharaLoginSuccess<P extends AutharaProviderName> = {
   provider: P;
   session: AuthSession;
 };
+
+export type AutharaInvitationLoginResult<P extends AutharaProviderName> =
+  | {
+      action: "login";
+      provider: P;
+      status: "authenticated";
+      session?: AuthSession;
+    }
+  | {
+      action: "login";
+      provider: P;
+      status: "recovery-required";
+      recovery: AutharaAccountRecoveryLink;
+    };
 
 export type AutharaLinkSuccess<P extends AutharaProviderName> = {
   action: "link";
@@ -136,13 +162,30 @@ export type AutharaActionSuccess<P extends AutharaProviderName> =
   | AutharaReauthenticationSuccess<P>
   | AutharaRecoverySuccess<P>;
 
+export type AutharaActionResult<P extends AutharaProviderName> =
+  AutharaActionSuccess<P> | AutharaInvitationLoginResult<P>;
+
 export type AutharaActionProps<P extends AutharaProviderName> =
   | {
       action?: "login";
       audience?: AutharaAudience;
       authenticationChallengeId?: never;
       recoveryLinkId?: never;
+      invitationToken?: never;
+      invitationFlow?: never;
       onSuccess?: (result: AutharaLoginSuccess<P>) => MaybePromise<void>;
+      onError?: (error: AutharaButtonError<AutharaLoginErrorCode>) => void;
+    }
+  | {
+      action?: "login";
+      audience?: "app";
+      authenticationChallengeId?: never;
+      recoveryLinkId?: never;
+      invitationToken: string;
+      invitationFlow?: AutharaInvitationFlow;
+      onSuccess?: (
+        result: AutharaInvitationLoginResult<P>,
+      ) => MaybePromise<void>;
       onError?: (error: AutharaButtonError<AutharaLoginErrorCode>) => void;
     }
   | {
@@ -150,6 +193,8 @@ export type AutharaActionProps<P extends AutharaProviderName> =
       audience?: never;
       authenticationChallengeId?: never;
       recoveryLinkId?: never;
+      invitationToken?: never;
+      invitationFlow?: never;
       onSuccess?: (result: AutharaLinkSuccess<P>) => MaybePromise<void>;
       onError?: (error: AutharaButtonError<AutharaLinkErrorCode>) => void;
     }
@@ -158,6 +203,8 @@ export type AutharaActionProps<P extends AutharaProviderName> =
       audience?: never;
       authenticationChallengeId: string;
       recoveryLinkId?: never;
+      invitationToken?: never;
+      invitationFlow?: never;
       onSuccess?: (
         result: AutharaReauthenticationSuccess<P>,
       ) => MaybePromise<void>;
@@ -170,6 +217,8 @@ export type AutharaActionProps<P extends AutharaProviderName> =
       audience?: "app";
       authenticationChallengeId?: never;
       recoveryLinkId: AutharaAccountRecoveryLink["link_id"];
+      invitationToken?: string;
+      invitationFlow?: never;
       onSuccess?: (result: AutharaRecoverySuccess<P>) => MaybePromise<void>;
       onError?: (error: AutharaButtonError<AutharaRecoveryErrorCode>) => void;
     };
