@@ -10,7 +10,7 @@ import {
 
 import type {
   AutharaActionProps,
-  AutharaActionSuccess,
+  AutharaActionResult,
   MaybePromise,
 } from "./contract.js";
 import { resolveAction, runAppleAction } from "./actions.js";
@@ -305,7 +305,9 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
     audience?: "app" | "admin" | "operator";
     authenticationChallengeId?: string;
     recoveryLinkId?: string;
-    onSuccess?: (result: AutharaActionSuccess<"apple">) => MaybePromise<void>;
+    invitationToken?: string;
+    invitationFlow?: "login" | "signup";
+    onSuccess?: (result: AutharaActionResult<"apple">) => MaybePromise<void>;
     onError?: (error: AutharaButtonError) => void;
   };
   const {
@@ -313,6 +315,8 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
     audience,
     authenticationChallengeId,
     recoveryLinkId,
+    invitationToken,
+    invitationFlow,
     onSuccess,
     onError,
     onCancel,
@@ -346,7 +350,7 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
         ...style,
       }}
       onAuthorization={async (proof) => {
-        let result: AutharaActionSuccess<"apple">;
+        let result: AutharaActionResult<"apple">;
         let selected;
         try {
           selected = resolveAction(
@@ -354,6 +358,8 @@ export function AppleButton(props: AppleButtonProps): React.JSX.Element | null {
             audience,
             authenticationChallengeId,
             recoveryLinkId,
+            invitationToken,
+            invitationFlow,
           );
         } catch (error) {
           throw toAutharaButtonError(

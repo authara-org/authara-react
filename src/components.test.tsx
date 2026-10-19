@@ -22,7 +22,7 @@ function client(
     }),
     getAppleLoginOptions: vi.fn().mockResolvedValue({
       client_id: "apple-client",
-      redirect_uri: "https://auth.example.com/auth/oauth/apple/callback",
+      redirect_uri: `${window.location.origin}/auth/oauth/apple/callback`,
       state: "apple-state",
       nonce: "apple-nonce",
     }),
@@ -47,6 +47,20 @@ function client(
       },
       access_token: "access-token",
       refresh_token: "refresh-token",
+    }),
+    authenticateAndAcceptInvitationWithGoogle: vi.fn().mockResolvedValue({
+      status: "authenticated",
+      session: {
+        user: {
+          id: "user-1",
+          email: "person@example.com",
+          username: "person",
+          disabled: false,
+          created_at: "2030-01-01T00:00:00Z",
+        },
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+      },
     }),
     linkCurrentUserGoogle: vi.fn().mockResolvedValue(undefined),
     linkCurrentUserApple: vi.fn().mockResolvedValue(undefined),
@@ -157,6 +171,34 @@ describe("Authara React provider buttons", () => {
     expect(onUnavailable).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects an Apple callback outside the exact application route", async () => {
+    const init = vi.fn();
+    window.AppleID = {
+      auth: { init, renderButton: vi.fn(), signIn: vi.fn() },
+    };
+    const onError = vi.fn();
+    render(
+      <AutharaProvider
+        client={client({
+          getAppleLoginOptions: vi.fn().mockResolvedValue({
+            client_id: "apple-client",
+            redirect_uri: "https://attacker.example/auth/oauth/apple/callback",
+            state: "apple-state",
+            nonce: "apple-nonce",
+          }),
+        })}
+      >
+        <AppleCredentialButton
+          onAuthorization={() => undefined}
+          onError={onError}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(init).not.toHaveBeenCalled();
+  });
+
   it("renders a directly clickable, focusable Google button", async () => {
     const google = mockGoogle();
 
@@ -256,13 +298,13 @@ describe("Authara React provider buttons", () => {
       .fn()
       .mockResolvedValueOnce({
         client_id: "apple-client",
-        redirect_uri: "https://auth.example.com/auth/oauth/apple/callback",
+        redirect_uri: `${window.location.origin}/auth/oauth/apple/callback`,
         state: "render-state",
         nonce: "render-nonce",
       })
       .mockResolvedValueOnce({
         client_id: "apple-client",
-        redirect_uri: "https://auth.example.com/auth/oauth/apple/callback",
+        redirect_uri: `${window.location.origin}/auth/oauth/apple/callback`,
         state: "fresh-state",
         nonce: "fresh-nonce",
       });
@@ -300,7 +342,7 @@ describe("Authara React provider buttons", () => {
     expect(signIn).toHaveBeenCalledWith({
       clientId: "apple-client",
       scope: "email",
-      redirectURI: "https://auth.example.com/auth/oauth/apple/callback",
+      redirectURI: `${window.location.origin}/auth/oauth/apple/callback`,
       state: "fresh-state",
       nonce: "fresh-nonce",
       usePopup: true,
@@ -534,6 +576,103 @@ describe("Authara React provider buttons", () => {
     expect(result.getByTestId("google-login").style.height).toBe("52px");
   });
 
+  it("accepts a Google invitation or returns its typed recovery step", async () => {
+    const google = mockGoogle();
+    const recovery = {
+      link_id: "recovery-link",
+      provider: "google" as const,
+      proof_methods: ["password" as const, "microsoft" as const],
+    };
+    const acceptInvitation = vi.fn().mockResolvedValue({
+      status: "proof_required",
+      recovery,
+    });
+    const authara = client({
+      authenticateAndAcceptInvitationWithGoogle: acceptInvitation,
+    });
+    const onSuccess = vi.fn();
+
+    render(
+      <AutharaProvider client={authara}>
+        <GoogleButton
+          invitationToken="invitation-token"
+          invitationFlow="signup"
+          onSuccess={onSuccess}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(google.configurations).toHaveLength(1));
+    google.configurations[0].callback({ code: "google-code" });
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(acceptInvitation).toHaveBeenCalledWith({
+      audience: "app",
+      body: {
+        code: "google-code",
+        redirect_uri: window.location.origin,
+        token: "invitation-token",
+        flow: "signup",
+      },
+    });
+    expect(authara.loginWithGoogle).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith({
+      action: "login",
+      provider: "google",
+      status: "recovery-required",
+      recovery,
+    });
+  });
+
+  it("rejects a malformed Google invitation recovery result", async () => {
+    const google = mockGoogle();
+    const onError = vi.fn();
+    const authara = client({
+      authenticateAndAcceptInvitationWithGoogle: vi.fn().mockResolvedValue({
+        status: "proof_required",
+        recovery: {
+          link_id: "",
+          provider: "google",
+          proof_methods: [],
+        },
+      }),
+    });
+
+    render(
+      <AutharaProvider client={authara}>
+        <GoogleButton invitationToken="invitation-token" onError={onError} />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(google.configurations).toHaveLength(1));
+    google.configurations[0].callback({ code: "google-code" });
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(onError.mock.calls[0][0]).toMatchObject({ source: "authara" });
+  });
+
+  it("reports Google cancellation separately from popup failures", async () => {
+    const google = mockGoogle();
+    const onCancel = vi.fn();
+    const onError = vi.fn();
+
+    render(
+      <AutharaProvider client={client()}>
+        <GoogleButton onCancel={onCancel} onError={onError} />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() => expect(google.configurations).toHaveLength(1));
+    google.configurations[0].error_callback?.({ type: "popup_closed" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+
+    google.configurations[0].error_callback?.({
+      type: "popup_failed_to_open",
+    });
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
   it("links Apple without exposing its authorization proof", async () => {
     window.AppleID = {
       auth: {
@@ -588,6 +727,53 @@ describe("Authara React provider buttons", () => {
     ).toBe("false");
   });
 
+  it("forwards invitation context through Apple login", async () => {
+    window.AppleID = {
+      auth: {
+        init: vi.fn(),
+        renderButton: vi.fn(),
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { code: "apple-code", state: "apple-state" },
+        }),
+      },
+    };
+    const authara = client();
+    const onSuccess = vi.fn();
+    const result = render(
+      <AutharaProvider client={authara}>
+        <AppleButton
+          data-testid="apple-invitation"
+          invitationToken="invitation-token"
+          onSuccess={onSuccess}
+        />
+      </AutharaProvider>,
+    );
+
+    await waitFor(() =>
+      expect(result.getByTestId("apple-invitation").dataset.autharaReady).toBe(
+        "true",
+      ),
+    );
+    fireEvent.click(result.getByTestId("apple-invitation").firstElementChild!);
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(authara.loginWithApple).toHaveBeenCalledWith({
+      audience: "app",
+      body: {
+        code: "apple-code",
+        state: "apple-state",
+        invitation_token: "invitation-token",
+      },
+    });
+    expect(onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "login",
+        provider: "apple",
+        status: "authenticated",
+      }),
+    );
+  });
+
   it("uses the provider dark-mode defaults", async () => {
     mockGoogle();
     const renderAppleButton = vi.fn();
@@ -636,6 +822,7 @@ describe("Authara React provider buttons", () => {
         <GoogleButton
           action="recover"
           recoveryLinkId="link-1"
+          invitationToken="invitation-token"
           audience="app"
           onSuccess={onSuccess}
         />
@@ -654,6 +841,7 @@ describe("Authara React provider buttons", () => {
         body: {
           code: "google-code",
           redirect_uri: window.location.origin,
+          invitation_token: "invitation-token",
         },
       }),
     );
@@ -680,6 +868,7 @@ describe("Authara React provider buttons", () => {
           data-testid="apple-recovery"
           action="recover"
           recoveryLinkId="link-1"
+          invitationToken="invitation-token"
           onSuccess={onSuccess}
         />
       </AutharaProvider>,
@@ -697,7 +886,11 @@ describe("Authara React provider buttons", () => {
         {
           linkID: "link-1",
           audience: "app",
-          body: { code: "apple-code", state: "apple-state" },
+          body: {
+            code: "apple-code",
+            state: "apple-state",
+            invitation_token: "invitation-token",
+          },
         },
       ),
     );
