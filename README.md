@@ -468,6 +468,10 @@ error unions from Core. Route/type-compatible updates may auto-merge. A changed
 error union deliberately requires human review so component mechanics and the
 documented application handling can be updated when necessary.
 
+Each merged Browser compatibility update is published as a new React minor
+release. Consumers can therefore upgrade both packages together without
+overriding the verified Browser peer range.
+
 Provider operations are discovered from Core's `get…LoginOptions` operations,
 so Microsoft error declarations enter the generated unions automatically. The
 Microsoft client methods are optional locally so this package still accepts the
