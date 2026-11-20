@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/authara-org/authara-react/compare/v0.5.0...v0.6.0) (2026-11-20)
+
+
+### Features
+
+* support Authara browser 0.14 ([#22](https://github.com/authara-org/authara-react/issues/22)) ([db7ebd4](https://github.com/authara-org/authara-react/commit/db7ebd4e650c0c66257ddbef5af28816787d2427))
+
 ## [0.5.0](https://github.com/authara-org/authara-react/compare/v0.4.0...v0.5.0) (2026-10-19)
 
 
